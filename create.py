@@ -382,9 +382,7 @@ def generate_svg(projected_edges, config):
         )
 
     dwg.save()
-    print(
-        f"SVG saved as dodecahedron.svg with {svg_config['background']} background and {svg_config['fill']} fill"
-    )
+    print("SVG saved as dodecahedron.svg")
 
 
 def create_svg_from_scene():
