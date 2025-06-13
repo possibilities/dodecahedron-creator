@@ -136,6 +136,37 @@ def configure_scene_in_viewer():
     plotter = create_viewer(config)
     plotter.add(mesh)
 
+    def handle_key_press(evt):
+        if evt.keypress == "Up":
+            cam = plotter.camera
+            current_fov = cam.GetViewAngle()
+            new_fov = min(current_fov + 5, 120)
+            cam.SetViewAngle(new_fov)
+            print(f"FOV increased to {new_fov}°")
+            plotter.render()
+        elif evt.keypress == "Down":
+            cam = plotter.camera
+            current_fov = cam.GetViewAngle()
+            new_fov = max(current_fov - 5, 5)
+            cam.SetViewAngle(new_fov)
+            print(f"FOV decreased to {new_fov}°")
+            plotter.render()
+
+    plotter.add_callback("on key press", handle_key_press)
+
+    print("\n=== Keybindings ===")
+    print("Camera Controls:")
+    print("  Mouse Left   : Rotate camera")
+    print("  Mouse Right  : Zoom/dolly")
+    print("  Mouse Middle : Pan/translate")
+    print("  Up Arrow     : Increase FOV by 5°")
+    print("  Down Arrow   : Decrease FOV by 5°")
+    print("\nUtility:")
+    print("  q            : Quit and save scene")
+    print("  r            : Reset camera")
+    print("  s            : Screenshot")
+    print("==================\n")
+
     config_file = "scene.json"
     if os.path.exists(config_file):
         setup_camera(plotter, config)
