@@ -5,10 +5,25 @@ from collections import defaultdict
 import json
 import os
 import argparse
+import yaml
 
 MODEL_PATH = "resources/dodecahedron.obj"
 SVG_PATH = "build/dodecahedron.svg"
 SCENE_CONFIG_PATH = "build/scene.json"
+CONFIG_FILE_PATH = "config.yaml"
+
+
+def read_config_file():
+    try:
+        with open(CONFIG_FILE_PATH, "r") as f:
+            config = yaml.safe_load(f)
+            return {
+                "azimuth": config.get("azimuth", 0),
+                "elevation": config.get("elevation", 0),
+                "speed": config.get("speed", 1.0),
+            }
+    except Exception:
+        return None
 
 
 def load_configuration(ignore_saved=False):
@@ -144,12 +159,25 @@ def configure_scene_in_viewer(use_fresh=False):
     plotter = create_viewer(config)
     plotter.add(mesh)
 
-    animation_state = {
-        "rotation_enabled": False,
-        "rotation_speed": 1.0,
-        "rotation_azimuth": 0.0,
-        "rotation_elevation": 0.0,
-    }
+    initial_config = read_config_file()
+    if initial_config:
+        animation_state = {
+            "rotation_enabled": False,
+            "rotation_speed": initial_config["speed"],
+            "rotation_azimuth": initial_config["azimuth"],
+            "rotation_elevation": initial_config["elevation"],
+        }
+        print(f"\nLoaded config from {CONFIG_FILE_PATH}:")
+        print(f"  Azimuth: {initial_config['azimuth']}°")
+        print(f"  Elevation: {initial_config['elevation']}°")
+        print(f"  Speed: {initial_config['speed']}°/frame")
+    else:
+        animation_state = {
+            "rotation_enabled": False,
+            "rotation_speed": 1.0,
+            "rotation_azimuth": 0.0,
+            "rotation_elevation": 0.0,
+        }
 
     def handle_key_press(evt):
         if evt.keypress == "Up":
@@ -174,6 +202,12 @@ def configure_scene_in_viewer(use_fresh=False):
             print(f"Rotation animation {status}")
 
     def handle_timer(evt):
+        config_from_file = read_config_file()
+        if config_from_file is not None:
+            animation_state["rotation_azimuth"] = config_from_file["azimuth"]
+            animation_state["rotation_elevation"] = config_from_file["elevation"]
+            animation_state["rotation_speed"] = config_from_file["speed"]
+
         if animation_state["rotation_enabled"]:
             azimuth_rad = np.radians(animation_state["rotation_azimuth"])
             elevation_rad = np.radians(animation_state["rotation_elevation"])
@@ -219,68 +253,6 @@ def configure_scene_in_viewer(use_fresh=False):
             )
             plotter.render()
 
-    def handle_azimuth_slider(widget, event):
-        animation_state["rotation_azimuth"] = widget.value
-        azimuth_deg = widget.value
-        elevation_deg = animation_state["rotation_elevation"]
-        print(
-            f"Rotation axis: azimuth={azimuth_deg:.1f}°, elevation={elevation_deg:.1f}°"
-        )
-
-    def handle_elevation_slider(widget, event):
-        animation_state["rotation_elevation"] = widget.value
-        azimuth_deg = animation_state["rotation_azimuth"]
-        elevation_deg = widget.value
-        print(
-            f"Rotation axis: azimuth={azimuth_deg:.1f}°, elevation={elevation_deg:.1f}°"
-        )
-
-    def handle_speed_slider(widget, event):
-        animation_state["rotation_speed"] = widget.value
-        print(f"Rotation speed: {widget.value:.1f}°/frame")
-
-    plotter.add_slider(
-        handle_speed_slider,
-        0.0,
-        10.0,
-        value=animation_state["rotation_speed"],
-        pos=((0.05, 0.13), (0.25, 0.13)),
-        title="Speed",
-        fmt="%.1f°/frame",
-        c="red",
-        font_size=10,
-        slider_width=0.012,
-        end_cap_length=0.015,
-    )
-
-    plotter.add_slider(
-        handle_elevation_slider,
-        -90,
-        90,
-        value=animation_state["rotation_elevation"],
-        pos=((0.05, 0.26), (0.25, 0.26)),
-        title="Elevation",
-        fmt="%.0f°",
-        c="green",
-        font_size=10,
-        slider_width=0.012,
-        end_cap_length=0.015,
-    )
-
-    plotter.add_slider(
-        handle_azimuth_slider,
-        0,
-        360,
-        value=animation_state["rotation_azimuth"],
-        pos=((0.05, 0.39), (0.25, 0.39)),
-        title="Azimuth",
-        fmt="%.0f°",
-        c="blue",
-        font_size=10,
-        slider_width=0.012,
-        end_cap_length=0.015,
-    )
-
     plotter.add_callback("on key press", handle_key_press)
     plotter.add_callback("timer", handle_timer, enable_picking=False)
 
@@ -295,10 +267,10 @@ def configure_scene_in_viewer(use_fresh=False):
     print("  Down Arrow   : Decrease FOV by 5°")
     print("\nAnimation:")
     print("  Spacebar     : Toggle rotation animation")
-    print("\nRotation Controls:")
-    print("  Azimuth      : Horizontal angle (0-360°)")
-    print("  Elevation    : Vertical angle (-90° to +90°)")
-    print("  Speed        : Rotation speed (0-10°/frame)")
+    print("\nRotation Controls (via config.yaml):")
+    print("  azimuth      : Horizontal angle (0-360°)")
+    print("  elevation    : Vertical angle (-90° to +90°)")
+    print("  speed        : Rotation speed (0-10°/frame)")
     print("\nUtility:")
     print("  q            : Quit and save scene")
     print("  r            : Reset camera")
