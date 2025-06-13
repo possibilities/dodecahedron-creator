@@ -174,13 +174,11 @@ def configure_scene_in_viewer():
 
     def handle_timer(evt):
         if animation_state["rotation_enabled"]:
-            cam_pos = np.array(plotter.camera.GetPosition())
-            focal_point = np.array(plotter.camera.GetFocalPoint())
-            view_dir = focal_point - cam_pos
-            view_dir = view_dir / np.linalg.norm(view_dir)
+            cam_up = np.array(plotter.camera.GetViewUp())
+            cam_up = cam_up / np.linalg.norm(cam_up)
 
             mesh.rotate(
-                animation_state["rotation_speed"], axis=view_dir, point=mesh.pos()
+                animation_state["rotation_speed"], axis=cam_up, point=mesh.pos()
             )
             plotter.render()
 
