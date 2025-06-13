@@ -178,12 +178,38 @@ def configure_scene_in_viewer(use_fresh=False):
             azimuth_rad = np.radians(animation_state["rotation_azimuth"])
             elevation_rad = np.radians(animation_state["rotation_elevation"])
 
-            rotation_axis = np.array(
+            # Get current camera vectors
+            camera = plotter.camera
+            camera_pos = np.array(camera.GetPosition())
+            focal_point = np.array(camera.GetFocalPoint())
+            camera_up = np.array(camera.GetViewUp())
+
+            # Calculate camera coordinate system
+            view_direction = focal_point - camera_pos
+            view_direction = view_direction / np.linalg.norm(view_direction)
+
+            # Camera right vector (cross product of view direction and up)
+            camera_right = np.cross(view_direction, camera_up)
+            camera_right = camera_right / np.linalg.norm(camera_right)
+
+            # Recalculate camera up to ensure orthogonality
+            camera_up = np.cross(camera_right, view_direction)
+            camera_up = camera_up / np.linalg.norm(camera_up)
+
+            # Calculate rotation axis in camera space
+            rotation_axis_camera = np.array(
                 [
                     -np.sin(azimuth_rad),
                     np.cos(elevation_rad) * np.cos(azimuth_rad),
                     np.sin(elevation_rad),
                 ]
+            )
+
+            # Transform rotation axis to world space using camera coordinate system
+            rotation_axis = (
+                rotation_axis_camera[0] * camera_right
+                + rotation_axis_camera[1] * camera_up
+                + rotation_axis_camera[2] * view_direction
             )
 
             rotation_axis = rotation_axis / np.linalg.norm(rotation_axis)
