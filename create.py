@@ -1,4 +1,4 @@
-from vedo import Mesh, Plotter, Text2D, Box
+from vedo import Mesh, Plotter, Text2D
 import numpy as np
 import svgwrite
 from collections import defaultdict
@@ -74,288 +74,16 @@ def setup_camera(plotter, config):
     return camera
 
 
-def add_controls(plotter, camera):
-    control_bg = Box(pos=(0.25, 0.5, 0), width=0.48, height=0.95, length=0.001)
-    control_bg.color("lightgray").alpha(0.9)
-    plotter.add(control_bg)
-
-    title = Text2D(
-        "CAMERA CONTROLS",
-        pos=(0.25, 0.92),
-        s=1.2,
-        c="black",
-        bold=True,
-        justify="center",
-    )
-    plotter.add(title)
-
-    slider_width = 0.35
-    slider_x_start = 0.08
-    slider_x_end = slider_x_start + slider_width
-    slider_y = 0.82
-    slider_spacing = 0.09
-
-    slider_values = []
-
-    def fov_slider(widget, event):
-        value = widget.GetRepresentation().GetValue()
-        camera.SetViewAngle(value)
-        slider_values[0].text(f"FOV: {value:.1f}°")
-        plotter.render()
-
-    fov_value = Text2D(
-        f"FOV: {camera.GetViewAngle():.1f}°",
-        pos=(0.25, slider_y + 0.03),
-        s=0.9,
-        c="black",
-        justify="center",
-    )
-    plotter.add(fov_value)
-    slider_values.append(fov_value)
-
-    plotter.add_slider(
-        fov_slider,
-        10,
-        120,
-        camera.GetViewAngle(),
-        pos=([slider_x_start, slider_y], [slider_x_end, slider_y]),
-        title="",
-        c="darkgray",
-        show_value=False,
-    )
-
-    slider_y -= slider_spacing
-
-    def distance_slider(widget, event):
-        value = widget.GetRepresentation().GetValue()
-        cam_pos = np.array(camera.GetPosition())
-        focal_point = np.array(camera.GetFocalPoint())
-        direction = cam_pos - focal_point
-        direction = direction / np.linalg.norm(direction)
-        new_pos = focal_point + direction * value
-        camera.SetPosition(new_pos)
-        slider_values[1].text(f"Distance: {value:.2f}")
-        plotter.render()
-
-    current_distance = np.linalg.norm(
-        np.array(camera.GetPosition()) - np.array(camera.GetFocalPoint())
-    )
-    dist_value = Text2D(
-        f"Distance: {current_distance:.2f}",
-        pos=(0.25, slider_y + 0.03),
-        s=0.9,
-        c="black",
-        justify="center",
-    )
-    plotter.add(dist_value)
-    slider_values.append(dist_value)
-
-    plotter.add_slider(
-        distance_slider,
-        0.5,
-        20.0,
-        current_distance,
-        pos=([slider_x_start, slider_y], [slider_x_end, slider_y]),
-        title="",
-        c="darkgray",
-        show_value=False,
-    )
-
-    slider_y -= slider_spacing
-
-    def azimuth_slider(widget, event):
-        value = widget.GetRepresentation().GetValue()
-        camera.Azimuth(value - widget.angle_last)
-        widget.angle_last = value
-        slider_values[2].text(f"Azimuth: {value:.1f}°")
-        plotter.render()
-
-    azimuth_value = Text2D(
-        "Azimuth: 0.0°", pos=(0.25, slider_y + 0.03), s=0.9, c="black", justify="center"
-    )
-    plotter.add(azimuth_value)
-    slider_values.append(azimuth_value)
-
-    azimuth_widget = plotter.add_slider(
-        azimuth_slider,
-        -180,
-        180,
-        0,
-        pos=([slider_x_start, slider_y], [slider_x_end, slider_y]),
-        title="",
-        c="darkgray",
-        show_value=False,
-    )
-    azimuth_widget.angle_last = 0
-
-    slider_y -= slider_spacing
-
-    def elevation_slider(widget, event):
-        value = widget.GetRepresentation().GetValue()
-        camera.Elevation(value - widget.angle_last)
-        widget.angle_last = value
-        slider_values[3].text(f"Elevation: {value:.1f}°")
-        plotter.render()
-
-    elevation_value = Text2D(
-        "Elevation: 0.0°",
-        pos=(0.25, slider_y + 0.03),
-        s=0.9,
-        c="black",
-        justify="center",
-    )
-    plotter.add(elevation_value)
-    slider_values.append(elevation_value)
-
-    elevation_widget = plotter.add_slider(
-        elevation_slider,
-        -90,
-        90,
-        0,
-        pos=([slider_x_start, slider_y], [slider_x_end, slider_y]),
-        title="",
-        c="darkgray",
-        show_value=False,
-    )
-    elevation_widget.angle_last = 0
-
-    slider_y -= slider_spacing
-
-    def roll_slider(widget, event):
-        value = widget.GetRepresentation().GetValue()
-        camera.Roll(value - widget.angle_last)
-        widget.angle_last = value
-        slider_values[4].text(f"Roll: {value:.1f}°")
-        plotter.render()
-
-    roll_value = Text2D(
-        "Roll: 0.0°", pos=(0.25, slider_y + 0.03), s=0.9, c="black", justify="center"
-    )
-    plotter.add(roll_value)
-    slider_values.append(roll_value)
-
-    roll_widget = plotter.add_slider(
-        roll_slider,
-        -180,
-        180,
-        0,
-        pos=([slider_x_start, slider_y], [slider_x_end, slider_y]),
-        title="",
-        c="darkgray",
-        show_value=False,
-    )
-    roll_widget.angle_last = 0
-
-    slider_y -= slider_spacing * 1.5
-    focal_title = Text2D(
-        "FOCAL POINT",
-        pos=(0.25, slider_y),
-        s=1.2,
-        c="black",
-        bold=True,
-        justify="center",
-    )
-    plotter.add(focal_title)
-
-    slider_y -= slider_spacing * 0.7
-
-    def focal_x_slider(widget, event):
-        value = widget.GetRepresentation().GetValue()
-        focal = list(camera.GetFocalPoint())
-        focal[0] = value
-        camera.SetFocalPoint(focal)
-        slider_values[5].text(f"X: {value:.3f}")
-        plotter.render()
-
-    focal_x_value = Text2D(
-        f"X: {camera.GetFocalPoint()[0]:.3f}",
-        pos=(0.25, slider_y + 0.03),
-        s=0.9,
-        c="black",
-        justify="center",
-    )
-    plotter.add(focal_x_value)
-    slider_values.append(focal_x_value)
-
-    plotter.add_slider(
-        focal_x_slider,
-        -5.0,
-        5.0,
-        camera.GetFocalPoint()[0],
-        pos=([slider_x_start, slider_y], [slider_x_end, slider_y]),
-        title="",
-        c="darkgray",
-        show_value=False,
-    )
-
-    slider_y -= slider_spacing
-
-    def focal_y_slider(widget, event):
-        value = widget.GetRepresentation().GetValue()
-        focal = list(camera.GetFocalPoint())
-        focal[1] = value
-        camera.SetFocalPoint(focal)
-        slider_values[6].text(f"Y: {value:.3f}")
-        plotter.render()
-
-    focal_y_value = Text2D(
-        f"Y: {camera.GetFocalPoint()[1]:.3f}",
-        pos=(0.25, slider_y + 0.03),
-        s=0.9,
-        c="black",
-        justify="center",
-    )
-    plotter.add(focal_y_value)
-    slider_values.append(focal_y_value)
-
-    plotter.add_slider(
-        focal_y_slider,
-        -5.0,
-        5.0,
-        camera.GetFocalPoint()[1],
-        pos=([slider_x_start, slider_y], [slider_x_end, slider_y]),
-        title="",
-        c="darkgray",
-        show_value=False,
-    )
-
-    slider_y -= slider_spacing
-
-    def focal_z_slider(widget, event):
-        value = widget.GetRepresentation().GetValue()
-        focal = list(camera.GetFocalPoint())
-        focal[2] = value
-        camera.SetFocalPoint(focal)
-        slider_values[7].text(f"Z: {value:.3f}")
-        plotter.render()
-
-    focal_z_value = Text2D(
-        f"Z: {camera.GetFocalPoint()[2]:.3f}",
-        pos=(0.25, slider_y + 0.03),
-        s=0.9,
-        c="black",
-        justify="center",
-    )
-    plotter.add(focal_z_value)
-    slider_values.append(focal_z_value)
-
-    plotter.add_slider(
-        focal_z_slider,
-        -5.0,
-        5.0,
-        camera.GetFocalPoint()[2],
-        pos=([slider_x_start, slider_y], [slider_x_end, slider_y]),
-        title="",
-        c="darkgray",
-        show_value=False,
-    )
-
+def add_instructions(plotter):
+    """Add minimal help text for interaction."""
     help_text = Text2D(
-        "Mouse: Rotate/Zoom | Shift+Mouse: Pan\nClose window to generate SVG",
-        pos=(0.25, 0.08),
-        s=0.7,
-        c="dimgray",
-        justify="center",
+        "Mouse: Rotate/Zoom | Shift+Mouse: Pan | Close window to generate SVG",
+        pos="bottom-center",
+        s=0.8,
+        c="gray",
+        font="Arial",
+        bg="white",
+        alpha=0.8,
     )
     plotter.add(help_text)
 
@@ -422,10 +150,17 @@ def configure_scene_in_viewer():
     plotter = create_viewer(config)
     plotter.add(mesh)
 
-    camera = setup_camera(plotter, config)
-    plotter.show(axes=0, interactive=False, resetcam=False)
+    # Check if we have a saved camera configuration
+    config_file = "scene.json"
+    if os.path.exists(config_file):
+        # Use saved camera settings
+        setup_camera(plotter, config)
+        plotter.show(axes=1, interactive=False, resetcam=False)
+    else:
+        # Let vedo automatically position the camera to fit the object
+        plotter.show(axes=1, interactive=False, resetcam=True)
 
-    add_controls(plotter, camera)
+    add_instructions(plotter)
 
     run_interactive_session(plotter)
 
