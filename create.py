@@ -141,10 +141,9 @@ def configure_scene_in_viewer():
     plotter = create_viewer(config)
     plotter.add(mesh)
 
-    # Animation state
     animation_state = {
         "rotation_enabled": False,
-        "rotation_speed": 1.0,  # degrees per frame
+        "rotation_speed": 1.0,
     }
 
     def handle_key_press(evt):
@@ -171,13 +170,11 @@ def configure_scene_in_viewer():
 
     def handle_timer(evt):
         if animation_state["rotation_enabled"]:
-            # Get camera view direction (from camera to focal point)
             cam_pos = np.array(plotter.camera.GetPosition())
             focal_point = np.array(plotter.camera.GetFocalPoint())
             view_dir = focal_point - cam_pos
-            view_dir = view_dir / np.linalg.norm(view_dir)  # normalize
+            view_dir = view_dir / np.linalg.norm(view_dir)
 
-            # Rotate around the view axis
             mesh.rotate(
                 animation_state["rotation_speed"], axis=view_dir, point=mesh.pos()
             )
@@ -186,7 +183,6 @@ def configure_scene_in_viewer():
     plotter.add_callback("on key press", handle_key_press)
     plotter.add_callback("timer", handle_timer, enable_picking=False)
 
-    # Create timer that fires every 20ms
     plotter.timer_callback("create", dt=20)
 
     print("\n=== Keybindings ===")
