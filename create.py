@@ -205,6 +205,10 @@ def configure_scene_in_viewer():
             f"Rotation axis: azimuth={azimuth_deg:.1f}°, elevation={elevation_deg:.1f}°"
         )
 
+    def handle_speed_slider(widget, event):
+        animation_state["rotation_speed"] = widget.value
+        print(f"Rotation speed: {widget.value:.1f}°/frame")
+
     plotter.add_slider(
         handle_azimuth_slider,
         0,
@@ -233,6 +237,20 @@ def configure_scene_in_viewer():
         end_cap_length=0.015,
     )
 
+    plotter.add_slider(
+        handle_speed_slider,
+        0.0,
+        5.0,
+        value=animation_state["rotation_speed"],
+        pos=((0.05, 0.19), (0.25, 0.19)),
+        title="Speed",
+        fmt="%.1f°/frame",
+        c="red",
+        font_size=10,
+        slider_width=0.012,
+        end_cap_length=0.015,
+    )
+
     plotter.add_callback("on key press", handle_key_press)
     plotter.add_callback("timer", handle_timer, enable_picking=False)
 
@@ -247,9 +265,10 @@ def configure_scene_in_viewer():
     print("  Down Arrow   : Decrease FOV by 5°")
     print("\nAnimation:")
     print("  Spacebar     : Toggle rotation animation")
-    print("\nRotation Axis Sliders:")
+    print("\nRotation Controls:")
     print("  Azimuth      : Horizontal angle (0-360°)")
     print("  Elevation    : Vertical angle (-90° to +90°)")
+    print("  Speed        : Rotation speed (0-5°/frame)")
     print("\nUtility:")
     print("  q            : Quit and save scene")
     print("  r            : Reset camera")
