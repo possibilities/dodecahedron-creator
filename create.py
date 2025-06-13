@@ -171,7 +171,16 @@ def configure_scene_in_viewer():
 
     def handle_timer(evt):
         if animation_state["rotation_enabled"]:
-            mesh.rotate_z(animation_state["rotation_speed"])
+            # Get camera view direction (from camera to focal point)
+            cam_pos = np.array(plotter.camera.GetPosition())
+            focal_point = np.array(plotter.camera.GetFocalPoint())
+            view_dir = focal_point - cam_pos
+            view_dir = view_dir / np.linalg.norm(view_dir)  # normalize
+
+            # Rotate around the view axis
+            mesh.rotate(
+                animation_state["rotation_speed"], axis=view_dir, point=mesh.pos()
+            )
             plotter.render()
 
     plotter.add_callback("on key press", handle_key_press)
