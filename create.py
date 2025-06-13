@@ -141,6 +141,12 @@ def configure_scene_in_viewer():
     plotter = create_viewer(config)
     plotter.add(mesh)
 
+    # Animation state
+    animation_state = {
+        "rotation_enabled": False,
+        "rotation_speed": 1.0,  # degrees per frame
+    }
+
     def handle_key_press(evt):
         if evt.keypress == "Up":
             cam = plotter.camera
@@ -156,8 +162,23 @@ def configure_scene_in_viewer():
             cam.SetViewAngle(new_fov)
             print(f"FOV decreased to {new_fov}°")
             plotter.render()
+        elif evt.keypress == "space":
+            animation_state["rotation_enabled"] = not animation_state[
+                "rotation_enabled"
+            ]
+            status = "started" if animation_state["rotation_enabled"] else "stopped"
+            print(f"Rotation animation {status}")
+
+    def handle_timer(evt):
+        if animation_state["rotation_enabled"]:
+            mesh.rotate_z(animation_state["rotation_speed"])
+            plotter.render()
 
     plotter.add_callback("on key press", handle_key_press)
+    plotter.add_callback("timer", handle_timer, enable_picking=False)
+
+    # Create timer that fires every 20ms
+    plotter.timer_callback("create", dt=20)
 
     print("\n=== Keybindings ===")
     print("Camera Controls:")
@@ -166,6 +187,8 @@ def configure_scene_in_viewer():
     print("  Mouse Middle : Pan/translate")
     print("  Up Arrow     : Increase FOV by 5°")
     print("  Down Arrow   : Decrease FOV by 5°")
+    print("\nAnimation:")
+    print("  Spacebar     : Toggle rotation animation")
     print("\nUtility:")
     print("  q            : Quit and save scene")
     print("  r            : Reset camera")
