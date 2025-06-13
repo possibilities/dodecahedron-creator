@@ -5,4 +5,7 @@ azimuth: 0
 elevation: 0
 
 # Rotation speed in degrees per frame (0-10)
-speed: 1.0
+speed: 5.0
+
+# Pause duration in seconds after each 360 degree rotation
+pause: 1.0

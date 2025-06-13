@@ -6,6 +6,7 @@ import json
 import os
 import argparse
 import yaml
+import time
 
 MODEL_PATH = "resources/dodecahedron.obj"
 SVG_PATH = "build/dodecahedron.svg"
@@ -21,6 +22,7 @@ def read_config_file():
                 "azimuth": config.get("azimuth", 0),
                 "elevation": config.get("elevation", 0),
                 "speed": config.get("speed", 1.0),
+                "pause": config.get("pause", 1.0),
             }
     except Exception:
         return None
@@ -166,17 +168,26 @@ def configure_scene_in_viewer(use_fresh=False):
             "rotation_speed": initial_config["speed"],
             "rotation_azimuth": initial_config["azimuth"],
             "rotation_elevation": initial_config["elevation"],
+            "pause_duration": initial_config["pause"],
+            "total_rotation": 0.0,
+            "is_paused": False,
+            "pause_start_time": None,
         }
         print(f"\nLoaded config from {CONFIG_FILE_PATH}:")
         print(f"  Azimuth: {initial_config['azimuth']}°")
         print(f"  Elevation: {initial_config['elevation']}°")
         print(f"  Speed: {initial_config['speed']}°/frame")
+        print(f"  Pause: {initial_config['pause']}s after each rotation")
     else:
         animation_state = {
             "rotation_enabled": False,
             "rotation_speed": 1.0,
             "rotation_azimuth": 0.0,
             "rotation_elevation": 0.0,
+            "pause_duration": 1.0,
+            "total_rotation": 0.0,
+            "is_paused": False,
+            "pause_start_time": None,
         }
 
     def handle_key_press(evt):
@@ -198,6 +209,10 @@ def configure_scene_in_viewer(use_fresh=False):
             animation_state["rotation_enabled"] = not animation_state[
                 "rotation_enabled"
             ]
+            # Reset rotation tracking when toggling animation
+            animation_state["total_rotation"] = 0.0
+            animation_state["is_paused"] = False
+            animation_state["pause_start_time"] = None
             status = "started" if animation_state["rotation_enabled"] else "stopped"
             print(f"Rotation animation {status}")
 
@@ -207,8 +222,33 @@ def configure_scene_in_viewer(use_fresh=False):
             animation_state["rotation_azimuth"] = config_from_file["azimuth"]
             animation_state["rotation_elevation"] = config_from_file["elevation"]
             animation_state["rotation_speed"] = config_from_file["speed"]
+            animation_state["pause_duration"] = config_from_file["pause"]
 
         if animation_state["rotation_enabled"]:
+            # Check if we're in a pause
+            if animation_state["is_paused"]:
+                current_time = time.time()
+                elapsed_pause = current_time - animation_state["pause_start_time"]
+                if elapsed_pause >= animation_state["pause_duration"]:
+                    # Pause is over, resume rotation
+                    animation_state["is_paused"] = False
+                    animation_state["pause_start_time"] = None
+                else:
+                    # Still paused, don't rotate
+                    return
+
+            # Perform rotation
+            rotation_amount = animation_state["rotation_speed"]
+            animation_state["total_rotation"] += rotation_amount
+
+            # Check if we've completed a full rotation
+            if animation_state["total_rotation"] >= 360.0:
+                animation_state["total_rotation"] = 0.0
+                animation_state["is_paused"] = True
+                animation_state["pause_start_time"] = time.time()
+                # Don't rotate this frame since we're starting a pause
+                return
+
             azimuth_rad = np.radians(animation_state["rotation_azimuth"])
             elevation_rad = np.radians(animation_state["rotation_elevation"])
 
@@ -248,9 +288,7 @@ def configure_scene_in_viewer(use_fresh=False):
 
             rotation_axis = rotation_axis / np.linalg.norm(rotation_axis)
 
-            mesh.rotate(
-                animation_state["rotation_speed"], axis=rotation_axis, point=mesh.pos()
-            )
+            mesh.rotate(rotation_amount, axis=rotation_axis, point=mesh.pos())
             plotter.render()
 
     plotter.add_callback("on key press", handle_key_press)
@@ -271,6 +309,7 @@ def configure_scene_in_viewer(use_fresh=False):
     print("  azimuth      : Horizontal angle (0-360°)")
     print("  elevation    : Vertical angle (-90° to +90°)")
     print("  speed        : Rotation speed (0-10°/frame)")
+    print("  pause        : Pause duration after each 360° rotation (seconds)")
     print("\nUtility:")
     print("  q            : Quit and save scene")
     print("  r            : Reset camera")
