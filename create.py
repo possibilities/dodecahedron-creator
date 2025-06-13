@@ -212,7 +212,7 @@ def configure_scene_in_viewer():
     plotter.add_slider(
         handle_speed_slider,
         0.0,
-        5.0,
+        10.0,
         value=animation_state["rotation_speed"],
         pos=((0.05, 0.13), (0.25, 0.13)),
         title="Speed",
@@ -268,7 +268,7 @@ def configure_scene_in_viewer():
     print("\nRotation Controls:")
     print("  Azimuth      : Horizontal angle (0-360°)")
     print("  Elevation    : Vertical angle (-90° to +90°)")
-    print("  Speed        : Rotation speed (0-5°/frame)")
+    print("  Speed        : Rotation speed (0-10°/frame)")
     print("\nUtility:")
     print("  q            : Quit and save scene")
     print("  r            : Reset camera")
