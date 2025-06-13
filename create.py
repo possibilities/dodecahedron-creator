@@ -172,6 +172,7 @@ def configure_scene_in_viewer(use_fresh=False):
             "total_rotation": 0.0,
             "is_paused": False,
             "pause_start_time": None,
+            "initial_transform": None,
         }
         print(f"\nLoaded config from {CONFIG_FILE_PATH}:")
         print(f"  Azimuth: {initial_config['azimuth']}°")
@@ -188,6 +189,7 @@ def configure_scene_in_viewer(use_fresh=False):
             "total_rotation": 0.0,
             "is_paused": False,
             "pause_start_time": None,
+            "initial_transform": None,
         }
 
     def handle_key_press(evt):
@@ -213,6 +215,11 @@ def configure_scene_in_viewer(use_fresh=False):
             animation_state["total_rotation"] = 0.0
             animation_state["is_paused"] = False
             animation_state["pause_start_time"] = None
+
+            # Store initial transform when starting animation
+            if animation_state["rotation_enabled"]:
+                animation_state["initial_transform"] = mesh.transform.clone()
+
             status = "started" if animation_state["rotation_enabled"] else "stopped"
             print(f"Rotation animation {status}")
 
@@ -237,18 +244,7 @@ def configure_scene_in_viewer(use_fresh=False):
                     # Still paused, don't rotate
                     return
 
-            # Perform rotation
-            rotation_amount = animation_state["rotation_speed"]
-            animation_state["total_rotation"] += rotation_amount
-
-            # Check if we've completed a full rotation
-            if animation_state["total_rotation"] >= 360.0:
-                animation_state["total_rotation"] = 0.0
-                animation_state["is_paused"] = True
-                animation_state["pause_start_time"] = time.time()
-                # Don't rotate this frame since we're starting a pause
-                return
-
+            # Calculate rotation axis first
             azimuth_rad = np.radians(animation_state["rotation_azimuth"])
             elevation_rad = np.radians(animation_state["rotation_elevation"])
 
@@ -288,6 +284,27 @@ def configure_scene_in_viewer(use_fresh=False):
 
             rotation_axis = rotation_axis / np.linalg.norm(rotation_axis)
 
+            # Check if next rotation would exceed 360
+            rotation_amount = animation_state["rotation_speed"]
+            next_total = animation_state["total_rotation"] + rotation_amount
+
+            if next_total >= 360.0:
+                # Calculate exact amount needed to reach 360
+                final_rotation = 360.0 - animation_state["total_rotation"]
+
+                # Apply only the amount needed to reach exactly 360
+                if final_rotation > 0:
+                    mesh.rotate(final_rotation, axis=rotation_axis, point=mesh.pos())
+
+                # Reset for next cycle
+                animation_state["total_rotation"] = 0.0
+                animation_state["is_paused"] = True
+                animation_state["pause_start_time"] = time.time()
+                plotter.render()
+                return
+
+            # Normal rotation
+            animation_state["total_rotation"] += rotation_amount
             mesh.rotate(rotation_amount, axis=rotation_axis, point=mesh.pos())
             plotter.render()
 
