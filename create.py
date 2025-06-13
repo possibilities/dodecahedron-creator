@@ -153,6 +153,22 @@ def save_configuration(plotter, mesh, config, animation_state):
     return True
 
 
+def ease_in_out_cubic(t):
+    """Cubic ease-in-out function for smooth acceleration/deceleration.
+
+    Args:
+        t: Progress from 0.0 to 1.0
+
+    Returns:
+        Eased value from 0.0 to 1.0
+    """
+    if t < 0.5:
+        return 4 * t * t * t
+    else:
+        p = 2 * t - 2
+        return 1 + p * p * p / 2
+
+
 def configure_scene_in_viewer(use_fresh=False):
     config = load_configuration(ignore_saved=use_fresh)
 
@@ -173,11 +189,12 @@ def configure_scene_in_viewer(use_fresh=False):
             "is_paused": False,
             "pause_start_time": None,
             "initial_transform": None,
+            "rotation_progress": 0.0,
         }
         print(f"\nLoaded config from {CONFIG_FILE_PATH}:")
         print(f"  Azimuth: {initial_config['azimuth']}°")
         print(f"  Elevation: {initial_config['elevation']}°")
-        print(f"  Speed: {initial_config['speed']}°/frame")
+        print(f"  Speed: {initial_config['speed']}°/frame (max speed)")
         print(f"  Pause: {initial_config['pause']}s after each rotation")
     else:
         animation_state = {
@@ -190,6 +207,7 @@ def configure_scene_in_viewer(use_fresh=False):
             "is_paused": False,
             "pause_start_time": None,
             "initial_transform": None,
+            "rotation_progress": 0.0,
         }
 
     def handle_key_press(evt):
@@ -215,6 +233,7 @@ def configure_scene_in_viewer(use_fresh=False):
             animation_state["total_rotation"] = 0.0
             animation_state["is_paused"] = False
             animation_state["pause_start_time"] = None
+            animation_state["rotation_progress"] = 0.0
 
             # Store initial transform when starting animation
             if animation_state["rotation_enabled"]:
@@ -284,28 +303,43 @@ def configure_scene_in_viewer(use_fresh=False):
 
             rotation_axis = rotation_axis / np.linalg.norm(rotation_axis)
 
-            # Check if next rotation would exceed 360
-            rotation_amount = animation_state["rotation_speed"]
-            next_total = animation_state["total_rotation"] + rotation_amount
+            # Calculate rotation amount using easing
+            # Progress goes from 0 to 1 over 360 degrees
+            max_speed = animation_state["rotation_speed"]
 
-            if next_total >= 360.0:
-                # Calculate exact amount needed to reach 360
-                final_rotation = 360.0 - animation_state["total_rotation"]
+            # Calculate how much progress we should make this frame
+            # This is based on the max speed setting
+            progress_increment = max_speed / 360.0
 
-                # Apply only the amount needed to reach exactly 360
-                if final_rotation > 0:
-                    mesh.rotate(final_rotation, axis=rotation_axis, point=mesh.pos())
+            # Update progress
+            new_progress = animation_state["rotation_progress"] + progress_increment
 
+            if new_progress >= 1.0:
+                # Complete the rotation to exactly 360 degrees
+                new_progress = 1.0
+
+            # Calculate eased positions for current and previous progress
+            eased_current = ease_in_out_cubic(new_progress)
+            eased_previous = ease_in_out_cubic(animation_state["rotation_progress"])
+
+            # The actual rotation is the difference in eased positions scaled by 360
+            rotation_amount = (eased_current - eased_previous) * 360.0
+
+            # Apply rotation
+            mesh.rotate(rotation_amount, axis=rotation_axis, point=mesh.pos())
+
+            # Update state
+            animation_state["rotation_progress"] = new_progress
+            animation_state["total_rotation"] = eased_current * 360.0
+
+            # Check if we've completed a full rotation
+            if new_progress >= 1.0:
                 # Reset for next cycle
+                animation_state["rotation_progress"] = 0.0
                 animation_state["total_rotation"] = 0.0
                 animation_state["is_paused"] = True
                 animation_state["pause_start_time"] = time.time()
-                plotter.render()
-                return
 
-            # Normal rotation
-            animation_state["total_rotation"] += rotation_amount
-            mesh.rotate(rotation_amount, axis=rotation_axis, point=mesh.pos())
             plotter.render()
 
     plotter.add_callback("on key press", handle_key_press)

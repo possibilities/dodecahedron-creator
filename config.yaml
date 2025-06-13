@@ -4,7 +4,8 @@ azimuth: 0
 # Elevation angle in degrees (-90 to 90)
 elevation: 0
 
-# Rotation speed in degrees per frame (0-10)
+# Maximum rotation speed in degrees per frame (0-10)
+# The rotation will ease in and out, reaching this speed at the midpoint
 speed: 5.0
 
 # Pause duration in seconds after each 360 degree rotation
