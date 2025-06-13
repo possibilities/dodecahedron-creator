@@ -58,6 +58,32 @@ camera.SetViewUp(CAMERA_VIEW_UP)
 camera.SetViewAngle(CAMERA_VIEW_ANGLE)
 camera.SetClippingRange(CAMERA_CLIPPING_RANGE)
 
-# Show the scene
-plotter.show(axes=0, interactive=True, resetcam=False)
+# Add a callback for the spinning animation
+def spin_animation(event):
+    # Get current azimuth angle
+    if not hasattr(spin_animation, 'total_rotation'):
+        spin_animation.total_rotation = 0
+        # 2 seconds total, 30 fps = 60 frames
+        # 360 degrees / 60 frames = 6 degrees per frame
+        # But in practice it seems slower, so doubling the speed
+        spin_animation.step_angle = 12  # degrees per frame
+    
+    # Rotate camera
+    camera.Azimuth(spin_animation.step_angle)
+    spin_animation.total_rotation += spin_animation.step_angle
+    
+    # Stop after one full rotation (360 degrees)
+    if spin_animation.total_rotation >= 360:
+        plotter.timer_callback("destroy", tid=spin_animation.timer_id)
+    
+    plotter.render()
+
+# Show the scene and start spinning
+plotter.show(axes=0, interactive=False, resetcam=False)
+
+# Add timer callback for animation (30 fps)
+spin_animation.timer_id = plotter.add_callback("timer", spin_animation)
+plotter.timer_callback("start", dt=33)  # ~30 fps
+
+plotter.interactive()
 plotter.close()
