@@ -21,21 +21,8 @@ def load_configuration():
     else:
         print("Using default scene configuration")
         return {
-            "camera": {
-                "position": [2.8228959321975706, -4.437200307846069, 5.200783538818359],
-                "focal_point": [-0.09484875202178955, -0.07701563835144043, 0.0],
-                "view_up": [0.0, 0.0, 1.0],
-                "view_angle": 30.0,
-                "clipping_range": [3.696141151662736, 12.051587187261307],
-            },
+            "camera": {},
             "mesh": {
-                "transform_matrix": [
-                    [1.0, 0.0, 0.0, 0.0],
-                    [0.0, 1.0, 0.0, 0.0],
-                    [0.0, 0.0, 1.0, 0.0],
-                    [0.0, 0.0, 0.0, 1.0],
-                ],
-                "position": [0.0, 0.0, 0.0],
                 "color": "black",
                 "linewidth": 4,
                 "edge_color": [1, 1, 1],
@@ -47,9 +34,12 @@ def load_configuration():
 def setup_mesh(config):
     mesh = Mesh(MODEL_PATH)
 
-    transform_matrix = np.array(config["mesh"]["transform_matrix"])
-    mesh.apply_transform(transform_matrix)
-    mesh.pos(config["mesh"]["position"])
+    if "transform_matrix" in config["mesh"]:
+        transform_matrix = np.array(config["mesh"]["transform_matrix"])
+        mesh.apply_transform(transform_matrix)
+
+    if "position" in config["mesh"]:
+        mesh.pos(config["mesh"]["position"])
 
     mesh.color(config["mesh"]["color"])
     mesh.lighting("off")
@@ -70,11 +60,16 @@ def create_viewer(config):
 
 def setup_camera(plotter, config):
     camera = plotter.camera
-    camera.SetPosition(config["camera"]["position"])
-    camera.SetFocalPoint(config["camera"]["focal_point"])
-    camera.SetViewUp(config["camera"]["view_up"])
-    camera.SetViewAngle(config["camera"]["view_angle"])
-    camera.SetClippingRange(config["camera"]["clipping_range"])
+    if "position" in config["camera"]:
+        camera.SetPosition(config["camera"]["position"])
+    if "focal_point" in config["camera"]:
+        camera.SetFocalPoint(config["camera"]["focal_point"])
+    if "view_up" in config["camera"]:
+        camera.SetViewUp(config["camera"]["view_up"])
+    if "view_angle" in config["camera"]:
+        camera.SetViewAngle(config["camera"]["view_angle"])
+    if "clipping_range" in config["camera"]:
+        camera.SetClippingRange(config["camera"]["clipping_range"])
     return camera
 
 
@@ -149,7 +144,7 @@ def configure_scene_in_viewer():
         "rotation_enabled": False,
         "rotation_speed": 1.0,
         "rotation_azimuth": 0.0,
-        "rotation_elevation": 90.0,
+        "rotation_elevation": 0.0,
     }
 
     def handle_key_press(evt):
@@ -181,8 +176,8 @@ def configure_scene_in_viewer():
 
             rotation_axis = np.array(
                 [
+                    -np.sin(azimuth_rad),
                     np.cos(elevation_rad) * np.cos(azimuth_rad),
-                    np.cos(elevation_rad) * np.sin(azimuth_rad),
                     np.sin(elevation_rad),
                 ]
             )
@@ -262,8 +257,8 @@ def configure_scene_in_viewer():
     print("==================\n")
 
     config_file = SCENE_CONFIG_PATH
-    if os.path.exists(config_file):
-        setup_camera(plotter, config)
+    setup_camera(plotter, config)
+    if os.path.exists(config_file) and config["camera"]:
         plotter.show(axes=0, interactive=False, resetcam=False)
     else:
         plotter.show(axes=0, interactive=False, resetcam=True)
