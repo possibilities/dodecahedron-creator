@@ -4,22 +4,26 @@ import svgwrite
 from collections import defaultdict
 import json
 import os
+import argparse
 
 MODEL_PATH = "resources/dodecahedron.obj"
 SVG_PATH = "build/dodecahedron.svg"
 SCENE_CONFIG_PATH = "build/scene.json"
 
 
-def load_configuration():
+def load_configuration(ignore_saved=False):
     config_file = SCENE_CONFIG_PATH
 
-    if os.path.exists(config_file):
+    if not ignore_saved and os.path.exists(config_file):
         with open(config_file, "r") as f:
             config = json.load(f)
         print(f"Loaded scene from {SCENE_CONFIG_PATH}")
         return config
     else:
-        print("Using default scene configuration")
+        if ignore_saved:
+            print("Using fresh scene configuration (--fresh flag)")
+        else:
+            print("Using default scene configuration")
         return {
             "camera": {},
             "mesh": {
@@ -132,8 +136,8 @@ def save_configuration(plotter, mesh, config, animation_state):
     return True
 
 
-def configure_scene_in_viewer():
-    config = load_configuration()
+def configure_scene_in_viewer(use_fresh=False):
+    config = load_configuration(ignore_saved=use_fresh)
 
     mesh = setup_mesh(config)
 
@@ -277,7 +281,7 @@ def configure_scene_in_viewer():
 
     config_file = SCENE_CONFIG_PATH
     setup_camera(plotter, config)
-    if os.path.exists(config_file) and config["camera"]:
+    if not use_fresh and os.path.exists(config_file) and config["camera"]:
         plotter.show(axes=0, interactive=False, resetcam=False)
     else:
         plotter.show(axes=0, interactive=False, resetcam=True)
@@ -546,7 +550,17 @@ def create_svg_from_scene():
 
 def main():
     """Main entry point - reads like a recipe."""
-    was_saved = configure_scene_in_viewer()
+    parser = argparse.ArgumentParser(
+        description="Interactive 3D dodecahedron viewer and SVG generator"
+    )
+    parser.add_argument(
+        "--fresh",
+        action="store_true",
+        help="Start with default view, ignoring saved scene.json",
+    )
+    args = parser.parse_args()
+
+    was_saved = configure_scene_in_viewer(use_fresh=args.fresh)
     if was_saved:
         create_svg_from_scene()
     else:
