@@ -5,6 +5,9 @@ from collections import defaultdict
 import json
 import os
 
+MODEL_PATH = "resources/dodecahedron.obj"
+SVG_PATH = "dodecahedron.svg"
+
 
 def load_configuration():
     config_file = "scene.json"
@@ -41,7 +44,7 @@ def load_configuration():
 
 
 def setup_mesh(config):
-    mesh = Mesh("resources/dodecahedron.obj")
+    mesh = Mesh(MODEL_PATH)
 
     transform_matrix = np.array(config["mesh"]["transform_matrix"])
     mesh.apply_transform(transform_matrix)
@@ -335,7 +338,7 @@ def generate_svg(projected_edges, config):
     svg_width = max_x - min_x
     svg_height = max_y - min_y
 
-    dwg = svgwrite.Drawing("dodecahedron.svg", size=(svg_width, svg_height))
+    dwg = svgwrite.Drawing(SVG_PATH, size=(svg_width, svg_height))
 
     dwg.add(
         dwg.rect(
@@ -413,7 +416,7 @@ def generate_svg(projected_edges, config):
         )
 
     dwg.save()
-    print("SVG saved as dodecahedron.svg")
+    print(f"SVG saved as {SVG_PATH}")
 
 
 def create_svg_from_scene():
