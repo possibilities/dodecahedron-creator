@@ -1,4 +1,4 @@
-from vedo import Mesh, Plotter, Text2D
+from vedo import Mesh, Plotter
 import numpy as np
 import svgwrite
 from collections import defaultdict
@@ -74,20 +74,6 @@ def setup_camera(plotter, config):
     return camera
 
 
-def add_instructions(plotter):
-    """Add minimal help text for interaction."""
-    help_text = Text2D(
-        "Mouse: Rotate/Zoom | Shift+Mouse: Pan | Close window to generate SVG",
-        pos="bottom-center",
-        s=0.8,
-        c="gray",
-        font="Arial",
-        bg="white",
-        alpha=0.8,
-    )
-    plotter.add(help_text)
-
-
 def run_interactive_session(plotter):
     plotter.interactive()
 
@@ -150,17 +136,12 @@ def configure_scene_in_viewer():
     plotter = create_viewer(config)
     plotter.add(mesh)
 
-    # Check if we have a saved camera configuration
     config_file = "scene.json"
     if os.path.exists(config_file):
-        # Use saved camera settings
         setup_camera(plotter, config)
-        plotter.show(axes=1, interactive=False, resetcam=False)
+        plotter.show(axes=0, interactive=False, resetcam=False)
     else:
-        # Let vedo automatically position the camera to fit the object
-        plotter.show(axes=1, interactive=False, resetcam=True)
-
-    add_instructions(plotter)
+        plotter.show(axes=0, interactive=False, resetcam=True)
 
     run_interactive_session(plotter)
 
