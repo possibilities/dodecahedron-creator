@@ -82,7 +82,10 @@ def run_interactive_session(plotter):
     plotter.interactive()
 
 
-def save_configuration(plotter, mesh, config):
+def save_configuration(plotter, mesh, config, animation_state):
+    if animation_state["rotation_enabled"]:
+        return False
+
     camera = plotter.camera
 
     final_position = list(camera.GetPosition())
@@ -131,6 +134,7 @@ def save_configuration(plotter, mesh, config):
         json.dump(scene_data, f, indent=2)
 
     print(f"Saved scene to {SCENE_CONFIG_PATH}")
+    return True
 
 
 def configure_scene_in_viewer():
@@ -209,9 +213,11 @@ def configure_scene_in_viewer():
 
     run_interactive_session(plotter)
 
-    save_configuration(plotter, mesh, config)
+    was_saved = save_configuration(plotter, mesh, config, animation_state)
 
     plotter.close()
+
+    return was_saved
 
 
 def load_scene_data():
@@ -469,8 +475,24 @@ def create_svg_from_scene():
 
 def main():
     """Main entry point - reads like a recipe."""
-    configure_scene_in_viewer()
-    create_svg_from_scene()
+    was_saved = configure_scene_in_viewer()
+    if was_saved:
+        create_svg_from_scene()
+    else:
+        print("\n" + "=" * 60)
+        print("⚠️  WARNING: ANIMATION WAS STILL RUNNING! ⚠️")
+        print("=" * 60)
+        print("Nothing was saved because the rotation animation was")
+        print("active when you closed the viewer.")
+        print("")
+        print("• Scene was NOT saved to scene.json")
+        print("• SVG was NOT generated")
+        print("")
+        print("To save your work:")
+        print("1. Run the program again")
+        print("2. Press SPACEBAR to stop the animation")
+        print("3. Then close the viewer")
+        print("=" * 60 + "\n")
 
 
 if __name__ == "__main__":
