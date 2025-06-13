@@ -12,7 +12,7 @@ def load_configuration():
     if os.path.exists(config_file):
         with open(config_file, "r") as f:
             config = json.load(f)
-        print("Loaded existing scene configuration from scene.json")
+        print("Loaded scene from scene.json")
         return config
     else:
         print("Using default scene configuration")
@@ -125,7 +125,7 @@ def save_configuration(plotter, mesh, config):
     with open("scene.json", "w") as f:
         json.dump(scene_data, f, indent=2)
 
-    print("\nScene configuration saved to scene.json")
+    print("Saved scene to scene.json")
 
 
 def configure_scene_in_viewer():
