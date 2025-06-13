@@ -6,7 +6,7 @@ import math
 import json
 import os
 
-config_file = "dist/scene.json"
+config_file = "scene.json"
 if os.path.exists(config_file):
     with open(config_file, "r") as f:
         config = json.load(f)
@@ -24,7 +24,7 @@ if os.path.exists(config_file):
     EDGE_COLOR = tuple(config["mesh"]["edge_color"])
     BACKGROUND_COLOR = config["viewport"]["background_color"]
 
-    print("Loaded existing scene configuration from dist/scene.json")
+    print("Loaded existing scene configuration from scene.json")
 else:
     CAMERA_POSITION = [2.8228959321975706, -4.437200307846069, 5.200783538818359]
     CAMERA_FOCAL_POINT = [-0.09484875202178955, -0.07701563835144043, 0.0]
@@ -404,17 +404,16 @@ scene_data = {
     },
 }
 
-os.makedirs("dist", exist_ok=True)
-with open("dist/scene.json", "w") as f:
+with open("scene.json", "w") as f:
     json.dump(scene_data, f, indent=2)
 
-print("\nScene configuration saved to dist/scene.json")
+print("\nScene configuration saved to scene.json")
 
 plotter.close()
 
 print("Generating SVG...")
 
-with open("dist/scene.json", "r") as f:
+with open("scene.json", "r") as f:
     config = json.load(f)
 
 CAMERA_POSITION = config["camera"]["position"]
@@ -557,7 +556,7 @@ max_y -= stroke_inset
 svg_width = max_x - min_x
 svg_height = max_y - min_y
 
-dwg = svgwrite.Drawing("dist/dodecahedron.svg", size=(svg_width, svg_height))
+dwg = svgwrite.Drawing("dodecahedron.svg", size=(svg_width, svg_height))
 
 dwg.add(dwg.rect(insert=(0, 0), size=(svg_width, svg_height), fill=SVG_BACKGROUND))
 center_x = sum(v[0] for v in vertices_list) / len(vertices_list)
@@ -666,9 +665,8 @@ for path in paths:
         )
     )
 
-os.makedirs("dist", exist_ok=True)
 dwg.save()
 
 print(
-    f"SVG saved as dist/dodecahedron.svg with {SVG_BACKGROUND} background and {SVG_FILL} fill"
+    f"SVG saved as dodecahedron.svg with {SVG_BACKGROUND} background and {SVG_FILL} fill"
 )
