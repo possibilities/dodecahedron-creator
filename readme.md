@@ -2,7 +2,7 @@
 
 # Dodecahedron Creator
 
-<img src="./dodecahedron.svg" alt="Dodecahedron" />
+<img src="./build/dodecahedron.svg" alt="Dodecahedron" />
 
 </div>
 
