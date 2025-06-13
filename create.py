@@ -6,16 +6,17 @@ import json
 import os
 
 MODEL_PATH = "resources/dodecahedron.obj"
-SVG_PATH = "dodecahedron.svg"
+SVG_PATH = "build/dodecahedron.svg"
+SCENE_CONFIG_PATH = "build/scene.json"
 
 
 def load_configuration():
-    config_file = "scene.json"
+    config_file = SCENE_CONFIG_PATH
 
     if os.path.exists(config_file):
         with open(config_file, "r") as f:
             config = json.load(f)
-        print("Loaded scene from scene.json")
+        print(f"Loaded scene from {SCENE_CONFIG_PATH}")
         return config
     else:
         print("Using default scene configuration")
@@ -125,10 +126,11 @@ def save_configuration(plotter, mesh, config):
         },
     }
 
-    with open("scene.json", "w") as f:
+    os.makedirs("build", exist_ok=True)
+    with open(SCENE_CONFIG_PATH, "w") as f:
         json.dump(scene_data, f, indent=2)
 
-    print("Saved scene to scene.json")
+    print(f"Saved scene to {SCENE_CONFIG_PATH}")
 
 
 def configure_scene_in_viewer():
@@ -170,7 +172,7 @@ def configure_scene_in_viewer():
     print("  s            : Screenshot")
     print("==================\n")
 
-    config_file = "scene.json"
+    config_file = SCENE_CONFIG_PATH
     if os.path.exists(config_file):
         setup_camera(plotter, config)
         plotter.show(axes=0, interactive=False, resetcam=False)
@@ -186,7 +188,7 @@ def configure_scene_in_viewer():
 
 def load_scene_data():
     """Load the saved scene configuration."""
-    with open("scene.json", "r") as f:
+    with open(SCENE_CONFIG_PATH, "r") as f:
         return json.load(f)
 
 
@@ -338,6 +340,7 @@ def generate_svg(projected_edges, config):
     svg_width = max_x - min_x
     svg_height = max_y - min_y
 
+    os.makedirs("build", exist_ok=True)
     dwg = svgwrite.Drawing(SVG_PATH, size=(svg_width, svg_height))
 
     dwg.add(
