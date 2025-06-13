@@ -1,0 +1,8 @@
+# Azimuth angle in degrees (0-360)
+azimuth: 0
+
+# Elevation angle in degrees (-90 to 90)
+elevation: 0
+
+# Rotation speed in degrees per frame (0-10)
+speed: 1.0
