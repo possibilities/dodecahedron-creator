@@ -148,6 +148,8 @@ def configure_scene_in_viewer():
     animation_state = {
         "rotation_enabled": False,
         "rotation_speed": 1.0,
+        "rotation_azimuth": 0.0,
+        "rotation_elevation": 90.0,
     }
 
     def handle_key_press(evt):
@@ -174,13 +176,67 @@ def configure_scene_in_viewer():
 
     def handle_timer(evt):
         if animation_state["rotation_enabled"]:
-            cam_up = np.array(plotter.camera.GetViewUp())
-            cam_up = cam_up / np.linalg.norm(cam_up)
+            azimuth_rad = np.radians(animation_state["rotation_azimuth"])
+            elevation_rad = np.radians(animation_state["rotation_elevation"])
+
+            rotation_axis = np.array(
+                [
+                    np.cos(elevation_rad) * np.cos(azimuth_rad),
+                    np.cos(elevation_rad) * np.sin(azimuth_rad),
+                    np.sin(elevation_rad),
+                ]
+            )
+
+            rotation_axis = rotation_axis / np.linalg.norm(rotation_axis)
 
             mesh.rotate(
-                animation_state["rotation_speed"], axis=cam_up, point=mesh.pos()
+                animation_state["rotation_speed"], axis=rotation_axis, point=mesh.pos()
             )
             plotter.render()
+
+    def handle_azimuth_slider(widget, event):
+        animation_state["rotation_azimuth"] = widget.value
+        azimuth_deg = widget.value
+        elevation_deg = animation_state["rotation_elevation"]
+        print(
+            f"Rotation axis: azimuth={azimuth_deg:.1f}°, elevation={elevation_deg:.1f}°"
+        )
+
+    def handle_elevation_slider(widget, event):
+        animation_state["rotation_elevation"] = widget.value
+        azimuth_deg = animation_state["rotation_azimuth"]
+        elevation_deg = widget.value
+        print(
+            f"Rotation axis: azimuth={azimuth_deg:.1f}°, elevation={elevation_deg:.1f}°"
+        )
+
+    plotter.add_slider(
+        handle_azimuth_slider,
+        0,
+        360,
+        value=animation_state["rotation_azimuth"],
+        pos=((0.05, 0.05), (0.25, 0.05)),
+        title="Azimuth",
+        fmt="%.0f°",
+        c="blue",
+        font_size=10,
+        slider_width=0.012,
+        end_cap_length=0.015,
+    )
+
+    plotter.add_slider(
+        handle_elevation_slider,
+        -90,
+        90,
+        value=animation_state["rotation_elevation"],
+        pos=((0.05, 0.12), (0.25, 0.12)),
+        title="Elevation",
+        fmt="%.0f°",
+        c="green",
+        font_size=10,
+        slider_width=0.012,
+        end_cap_length=0.015,
+    )
 
     plotter.add_callback("on key press", handle_key_press)
     plotter.add_callback("timer", handle_timer, enable_picking=False)
@@ -196,6 +252,9 @@ def configure_scene_in_viewer():
     print("  Down Arrow   : Decrease FOV by 5°")
     print("\nAnimation:")
     print("  Spacebar     : Toggle rotation animation")
+    print("\nRotation Axis Sliders:")
+    print("  Azimuth      : Horizontal angle (0-360°)")
+    print("  Elevation    : Vertical angle (-90° to +90°)")
     print("\nUtility:")
     print("  q            : Quit and save scene")
     print("  r            : Reset camera")
