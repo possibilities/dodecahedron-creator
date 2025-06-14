@@ -151,9 +151,6 @@ def run_interactive_session(plotter):
 
 
 def save_configuration(plotter, mesh, config, animation_state):
-    if animation_state["rotation_enabled"]:
-        return False
-
     camera = plotter.camera
 
     final_position = list(camera.GetPosition())
@@ -384,20 +381,8 @@ def calculate_rotation_and_apply(animation_state, plotter, mesh, config=None):
 
 
 def handle_frame_capture(animation_state, plotter, mesh, config, mode="positioning"):
-    if (
-        animation_state["capture_fps"] > 0
-        and animation_state["recording_active"]
-        and not animation_state["first_cycle_complete"]
-    ):
-        current_time = time.time() * MS_PER_SECOND
-        frame_interval = MS_PER_SECOND / animation_state["capture_fps"]
-
-        if current_time - animation_state["last_capture_time"] >= frame_interval:
-            animation_state["frame_counter"] += 1
-            capture_frame_as_json(
-                plotter, mesh, animation_state["frame_counter"], config
-            )
-            animation_state["last_capture_time"] = current_time
+    # Frame capture is now only done in headless mode
+    pass
 
 
 def handle_rotation_completion(animation_state, mode="positioning", plotter=None):
@@ -408,57 +393,6 @@ def handle_rotation_completion(animation_state, mode="positioning", plotter=None
             animation_state["rotation_progress"] = 0.0
             animation_state["total_rotation"] = 0.0
             animation_state["current_rotation"] = 0
-
-            if (
-                animation_state["recording_requested"]
-                and not animation_state["recording_active"]
-            ):
-                animation_state["recording_active"] = True
-                animation_state["recording_requested"] = False
-                animation_state["frame_counter"] = 0
-                animation_state["last_capture_time"] = time.time() * MS_PER_SECOND
-                animation_state["first_cycle_complete"] = False
-
-                frames_dir = FRAMES_DIR
-                os.makedirs(frames_dir, exist_ok=True)
-                existing_files = glob.glob(os.path.join(frames_dir, "frame_*.json"))
-                existing_files.extend(
-                    glob.glob(os.path.join(frames_dir, "frame_*.svg"))
-                )
-                if existing_files:
-                    for f in existing_files:
-                        os.remove(f)
-                    print(f"\nCleared {len(existing_files)} existing frame files")
-
-                print(
-                    f"\nRecording started! Capturing {animation_state['capture_fps']} fps..."
-                )
-                # Update the label if it exists
-                if "recording_label" in animation_state:
-                    animation_state["recording_label"].text("Animation is recording...")
-                return
-
-            if animation_state["recording_active"]:
-                animation_state["first_cycle_complete"] = True
-                animation_state["recording_active"] = False
-
-                if animation_state["frame_counter"] > 0:
-                    print(
-                        f"\nRecording complete: {animation_state['frame_counter']} JSON frames saved to {FRAMES_DIR}/"
-                    )
-
-                # Update the label if it exists
-                if "recording_label" in animation_state:
-                    animation_state["recording_label"].text("Recording complete!")
-                    if plotter:
-                        plotter.render()
-
-                if plotter and mode == "animation":
-                    print("\nClosing viewer...")
-                    plotter.close()
-                    return
-            else:
-                animation_state["first_cycle_complete"] = True
 
             if not animation_state["continuous"]:
                 animation_state["is_paused"] = True
@@ -471,13 +405,7 @@ def handle_rotation_completion(animation_state, mode="positioning", plotter=None
 
 def handle_key_press(evt, plotter, animation_state, mesh, config, mode="positioning"):
     if mode == "animation":
-        if evt.keypress == "r" and not animation_state["recording_active"]:
-            animation_state["recording_requested"] = True
-            print("\nRecording will start at the beginning of the next rotation...")
-            # Update the label if it exists
-            if "recording_label" in animation_state:
-                animation_state["recording_label"].text("Waiting for rotation...")
-                plotter.render()
+        # No special keys in animation preview mode
         return
 
     if evt.keypress == "Up":
@@ -511,22 +439,6 @@ def handle_key_press(evt, plotter, animation_state, mesh, config, mode="position
             animation_state["last_capture_time"] = time.time() * MS_PER_SECOND
             animation_state["first_cycle_complete"] = False
 
-            if animation_state["capture_fps"] > 0:
-                frames_dir = FRAMES_DIR
-                existing_files = glob.glob(os.path.join(frames_dir, "frame_*.json"))
-                existing_files.extend(
-                    glob.glob(os.path.join(frames_dir, "frame_*.svg"))
-                )
-
-                if existing_files:
-                    for f in existing_files:
-                        os.remove(f)
-                    print(f"Cleared {len(existing_files)} existing frame files")
-
-                print(
-                    f"Frame capture enabled: {animation_state['capture_fps']} fps (JSON) - first animation cycle ({animation_state['rotations']} rotation{'s' if animation_state['rotations'] != 1 else ''})"
-                )
-
         status = "started" if animation_state["rotation_enabled"] else "stopped"
         print(f"Rotation animation {status}")
 
@@ -541,8 +453,6 @@ def handle_timer(evt, plotter, mesh, config, animation_state, mode="positioning"
         new_progress = calculate_rotation_and_apply(
             animation_state, plotter, mesh, config
         )
-
-        handle_frame_capture(animation_state, plotter, mesh, config)
 
         if new_progress >= 1.0:
             handle_rotation_completion(animation_state, mode, plotter)
@@ -641,8 +551,6 @@ def setup_animation_state():
             "frame_counter": 0,
             "last_capture_time": None,
             "first_cycle_complete": False,
-            "recording_requested": False,
-            "recording_active": False,
         }
         print(f"\nLoaded config from {CONFIG_FILE_PATH}:")
         print(f"  Azimuth: {initial_config['azimuth']}°")
@@ -679,8 +587,6 @@ def setup_animation_state():
             "frame_counter": 0,
             "last_capture_time": None,
             "first_cycle_complete": False,
-            "recording_requested": False,
-            "recording_active": False,
         }
     return animation_state
 
@@ -713,8 +619,7 @@ def print_keybindings(mode="positioning"):
         print("  r            : Reset camera")
         print("  s            : Screenshot")
     else:
-        print("Animation Controls:")
-        print("  r            : Start recording animation")
+        print("Animation Preview:")
         print("  Animation runs automatically")
         print("  Camera controls are disabled during animation")
         print("\nAnimation Settings (via config.yaml):")
@@ -724,7 +629,7 @@ def print_keybindings(mode="positioning"):
         print("  rotations    : Number of full rotations")
         print("  easing       : Animation easing function")
         print("\nUtility:")
-        print("  q            : Quit and save animation")
+        print("  q            : Quit and proceed to recording")
 
     print("==================\n")
 
@@ -747,15 +652,14 @@ def configure_scene_in_viewer(use_fresh=False, mode="positioning"):
 
     if mode == "animation":
         print("\n" + "=" * 60)
-        print("ANIMATION CAPTURE MODE")
+        print("ANIMATION PREVIEW MODE")
         print("=" * 60)
         print("Animation will start automatically")
-        print("Press 'r' to start recording")
-        print("Recording will close viewer automatically when complete")
+        print("Close the window to proceed to recording")
         print("=" * 60 + "\n")
 
         mode_text = vedo.Text2D(
-            "Animation Mode",
+            "Animation Preview",
             pos="top-left",
             c="black",
             font="Fira Code",
@@ -764,19 +668,6 @@ def configure_scene_in_viewer(use_fresh=False, mode="positioning"):
             alpha=0.8,
         )
         plotter.add(mode_text)
-
-        # Add recording status label on the right
-        recording_text = vedo.Text2D(
-            "Press 'r' to record",
-            pos="top-right",
-            c="black",
-            font="Fira Code",
-            s=0.8,  # Smaller text
-            bg="white",
-            alpha=0.8,
-        )
-        plotter.add(recording_text)
-        animation_state["recording_label"] = recording_text
     else:
         print("\n" + "=" * 60)
         print("POSITIONING MODE")
@@ -804,14 +695,8 @@ def configure_scene_in_viewer(use_fresh=False, mode="positioning"):
         animation_state["frame_counter"] = 0
         animation_state["last_capture_time"] = time.time() * MS_PER_SECOND
         animation_state["first_cycle_complete"] = False
-        animation_state["recording_requested"] = False
-        animation_state["recording_active"] = False
 
         print("\nAnimation started automatically")
-        if animation_state["capture_fps"] > 0:
-            print(
-                f"Press 'r' to start recording at {animation_state['capture_fps']} fps"
-            )
 
     run_interactive_viewer(plotter, config, use_fresh, mode)
 
@@ -1232,23 +1117,35 @@ def create_animated_gif(png_paths, output_path, capture_fps, animation_config):
         ) * MS_PER_SECOND
 
         duration_per_frame = int(total_animation_time_ms / len(images))
-
         duration_per_frame = max(duration_per_frame, MIN_GIF_FRAME_DURATION_MS)
+
+        # Create duration list for each frame
+        durations = [duration_per_frame] * len(images)
+
+        # Add pause duration to the last frame if not in continuous mode
+        if not animation_config.get("continuous", False):
+            pause_duration_ms = animation_config.get("pause", 1.0) * MS_PER_SECOND
+            durations[-1] += int(pause_duration_ms)
 
         images[0].save(
             output_path,
             save_all=True,
             append_images=images[1:],
-            duration=duration_per_frame,
+            duration=durations,
             loop=0,
         )
 
         actual_fps = MS_PER_SECOND / duration_per_frame
+        total_gif_time = sum(durations) / MS_PER_SECOND
         print(f"Created animated GIF: {output_path}")
         print(f"  Frames: {len(images)}")
         print(f"  Duration per frame: {duration_per_frame}ms")
+        if not animation_config.get("continuous", False):
+            print(
+                f"  Last frame duration: {durations[-1]}ms (includes {animation_config.get('pause', 1.0)}s pause)"
+            )
         print(f"  Effective playback rate: {actual_fps:.1f} fps")
-        print(f"  Total animation time: {total_animation_time_ms / MS_PER_SECOND:.2f}s")
+        print(f"  Total GIF duration: {total_gif_time:.2f}s")
         return True
     return False
 
@@ -1290,6 +1187,114 @@ def create_svg_from_scene():
                 create_animated_gif(png_paths, GIF_PATH, config["capture_fps"], config)
 
 
+def run_headless_recording(config):
+    """Run a headless animation cycle to capture frames"""
+    print("\n" + "=" * 60)
+    print("HEADLESS RECORDING")
+    print("=" * 60)
+
+    # Clear existing frame files
+    frames_dir = FRAMES_DIR
+    os.makedirs(frames_dir, exist_ok=True)
+    existing_files = glob.glob(os.path.join(frames_dir, "frame_*.json"))
+    existing_files.extend(glob.glob(os.path.join(frames_dir, "frame_*.svg")))
+    if existing_files:
+        for f in existing_files:
+            os.remove(f)
+        print(f"Cleared {len(existing_files)} existing frame files")
+
+    # Set up animation state
+    animation_state = setup_animation_state()
+    animation_state["rotation_enabled"] = True
+    animation_state["frame_counter"] = 0
+    animation_state["last_capture_time"] = 0  # Start capturing immediately
+
+    # Create offscreen renderer
+    mesh = setup_mesh(config)
+    plotter = Plotter(
+        bg=config["viewport"]["background_color"],
+        offscreen=True,
+        size=tuple(config["viewport"]["size"]),
+    )
+    plotter.add(mesh)
+    setup_camera(plotter, config)
+    plotter.show(axes=0, interactive=False, resetcam=False)
+
+    # Store initial transform
+    animation_state["initial_transform"] = mesh.transform.clone()
+
+    print(f"Recording at {animation_state['capture_fps']} fps...")
+
+    # Run animation loop
+    frames_captured = 0
+    last_time = time.time() * MS_PER_SECOND
+
+    while animation_state["current_rotation"] < animation_state["rotations"]:
+        current_time = time.time() * MS_PER_SECOND
+
+        # Update animation if not paused
+        if not animation_state["is_paused"]:
+            new_progress = calculate_rotation_and_apply(
+                animation_state, plotter, mesh, config
+            )
+
+            # Capture frame at specified FPS (only when animating, not during pause)
+            if animation_state["capture_fps"] > 0:
+                frame_interval = MS_PER_SECOND / animation_state["capture_fps"]
+                if (
+                    current_time - animation_state["last_capture_time"]
+                    >= frame_interval
+                ):
+                    animation_state["frame_counter"] += 1
+                    capture_frame_as_json(
+                        plotter, mesh, animation_state["frame_counter"], config
+                    )
+                    animation_state["last_capture_time"] = current_time
+                    frames_captured += 1
+
+            # Handle rotation completion
+            if new_progress >= 1.0:
+                animation_state["current_rotation"] += 1
+                if animation_state["current_rotation"] < animation_state["rotations"]:
+                    animation_state["rotation_progress"] = 0.0
+                    animation_state["total_rotation"] = 0.0
+
+                    # Capture one final frame at the end position before pause
+                    if (
+                        not animation_state["continuous"]
+                        and animation_state["capture_fps"] > 0
+                    ):
+                        animation_state["frame_counter"] += 1
+                        capture_frame_as_json(
+                            plotter, mesh, animation_state["frame_counter"], config
+                        )
+                        frames_captured += 1
+
+                    # Handle pause if not continuous
+                    if not animation_state["continuous"]:
+                        animation_state["is_paused"] = True
+                        animation_state["pause_start_time"] = time.time()
+        else:
+            # Handle pause logic (skip frame capture during pause)
+            if handle_animation_pause_logic(animation_state):
+                animation_state["is_paused"] = False
+                # Reset capture time after pause to avoid frame burst
+                animation_state["last_capture_time"] = time.time() * MS_PER_SECOND
+
+        # Small delay to control animation speed (matching TIMER_INTERVAL_MS)
+        elapsed = current_time - last_time
+        if elapsed < TIMER_INTERVAL_MS:
+            time.sleep((TIMER_INTERVAL_MS - elapsed) / MS_PER_SECOND)
+        last_time = current_time
+
+    plotter.close()
+
+    print(f"\nRecording complete: {frames_captured} JSON frames saved to {FRAMES_DIR}/")
+    print("=" * 60 + "\n")
+
+    return frames_captured > 0
+
+
 def check_for_captured_frames():
     frame_json_files = glob.glob(os.path.join(FRAMES_DIR, FRAME_JSON_PATTERN))
     return len(frame_json_files) > 0
@@ -1311,10 +1316,11 @@ def main():
 
     if capture_enabled:
         print("\n" + "=" * 60)
-        print("TWO-PHASE WORKFLOW ENABLED")
+        print("THREE-PHASE WORKFLOW ENABLED")
         print("=" * 60)
         print("Phase 1: Positioning for static SVG")
-        print("Phase 2: Animation capture")
+        print("Phase 2: Animation preview")
+        print("Phase 3: Headless recording")
         print("=" * 60 + "\n")
 
         was_saved = configure_scene_in_viewer(use_fresh=args.fresh, mode="positioning")
@@ -1322,14 +1328,25 @@ def main():
         if was_saved:
             print("\n" + "=" * 60)
             print("Positioning complete!")
-            print("Now opening animation viewer...")
+            print("Now opening animation preview...")
             print("=" * 60 + "\n")
 
             configure_scene_in_viewer(use_fresh=False, mode="animation")
 
-            if check_for_captured_frames():
+            print("\n" + "=" * 60)
+            print("Animation preview complete!")
+            print("Starting headless recording...")
+            print("=" * 60 + "\n")
+
+            # Load the saved scene configuration
+            scene_config = load_scene_data()
+
+            # Run headless recording
+            frames_recorded = run_headless_recording(scene_config)
+
+            if frames_recorded:
                 print("\n" + "=" * 60)
-                print("Animation capture complete!")
+                print("Headless recording complete!")
                 print("Generating outputs...")
                 print("=" * 60 + "\n")
                 create_svg_from_scene()
