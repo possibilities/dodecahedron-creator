@@ -141,19 +141,32 @@ def read_config_file():
             # Handle new styles format
             styles = config.get("styles", [])
             if not styles:
-                # Fallback to legacy svg section if no styles defined
-                svg_config = config.get(
-                    "svg",
+                # Fallback to default styles if none defined
+                styles = [
                     {
-                        "stroke_width": DEFAULT_SVG_STROKE_WIDTH,
-                        "background": DEFAULT_BACKGROUND_COLOR,
-                        "fill": DEFAULT_SVG_FILL,
-                        "stroke": DEFAULT_SVG_STROKE,
-                        "stroke_linecap": "round",
-                        "stroke_linejoin": "round",
+                        "name": "black-on-white",
+                        "background": "white",
+                        "foreground": "black",
                     },
-                )
-                styles = [{"name": "default", **svg_config}]
+                    {
+                        "name": "white-on-black",
+                        "background": "black",
+                        "foreground": "white",
+                    },
+                ]
+
+            # Add common stroke settings to each style
+            stroke_width = config.get("stroke_width", DEFAULT_SVG_STROKE_WIDTH)
+            stroke_linecap = config.get("stroke_linecap", "round")
+            stroke_linejoin = config.get("stroke_linejoin", "round")
+
+            for style in styles:
+                style["stroke_width"] = stroke_width
+                style["stroke_linecap"] = stroke_linecap
+                style["stroke_linejoin"] = stroke_linejoin
+                # Fill and stroke derived from foreground/background
+                style["fill"] = style.get("foreground", "black")
+                style["stroke"] = style.get("background", "white")
 
             return {
                 "azimuth": config.get("azimuth", 0),
@@ -165,17 +178,20 @@ def read_config_file():
                 "continuous": config.get("continuous", False),
                 "capture_fps": config.get("capture_fps", 0),
                 "raster_height": config.get("raster_height", 100),
+                "stroke_width": stroke_width,
+                "stroke_linecap": stroke_linecap,
+                "stroke_linejoin": stroke_linejoin,
                 "styles": styles,
                 # Keep first style as default for backward compatibility
                 "svg": styles[0]
                 if styles
                 else {
-                    "stroke_width": DEFAULT_SVG_STROKE_WIDTH,
+                    "stroke_width": stroke_width,
                     "background": DEFAULT_BACKGROUND_COLOR,
                     "fill": DEFAULT_SVG_FILL,
                     "stroke": DEFAULT_SVG_STROKE,
-                    "stroke_linecap": "round",
-                    "stroke_linejoin": "round",
+                    "stroke_linecap": stroke_linecap,
+                    "stroke_linejoin": stroke_linejoin,
                 },
             }
     except Exception:
@@ -305,21 +321,10 @@ def save_configuration(plotter, mesh, config, animation_state, scene_path=None):
         else config["mesh"]["transform_matrix"]
     )
 
-    # Always read fresh SVG settings from config.yaml
-    config_from_file = read_config_file()
+    # Use SVG settings from config
     svg_settings = (
-        config_from_file.get(
-            "svg",
-            {
-                "stroke_width": DEFAULT_SVG_STROKE_WIDTH,
-                "background": DEFAULT_BACKGROUND_COLOR,
-                "fill": DEFAULT_SVG_FILL,
-                "stroke": DEFAULT_SVG_STROKE,
-                "stroke_linecap": "round",
-                "stroke_linejoin": "round",
-            },
-        )
-        if config_from_file
+        config["svg"]
+        if "svg" in config
         else {
             "stroke_width": DEFAULT_SVG_STROKE_WIDTH,
             "background": DEFAULT_BACKGROUND_COLOR,
