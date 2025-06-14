@@ -26,6 +26,7 @@ def read_config_file():
                 "pause": config.get("pause", 1.0),
                 "rotations": config.get("rotations", 1),
                 "easing": config.get("easing", "quadInOut"),
+                "continuous": config.get("continuous", False),
             }
     except Exception:
         return None
@@ -231,12 +232,16 @@ def configure_scene_in_viewer(use_fresh=False):
             "current_rotation": 0,
             "easing_type": initial_config["easing"],
             "easing_func": get_easing_function(initial_config["easing"]),
+            "continuous": initial_config["continuous"],
         }
         print(f"\nLoaded config from {CONFIG_FILE_PATH}:")
         print(f"  Azimuth: {initial_config['azimuth']}°")
         print(f"  Elevation: {initial_config['elevation']}°")
         print(f"  Speed: {initial_config['speed']}°/frame (max speed)")
-        print(f"  Pause: {initial_config['pause']}s after each rotation")
+        if initial_config["continuous"]:
+            print("  Mode: Continuous (no pauses)")
+        else:
+            print(f"  Pause: {initial_config['pause']}s after each rotation")
         print(
             f"  Rotations: {initial_config['rotations']} ({initial_config['rotations'] * 360}° total)"
         )
@@ -257,6 +262,7 @@ def configure_scene_in_viewer(use_fresh=False):
             "current_rotation": 0,
             "easing_type": "quadInOut",
             "easing_func": get_easing_function("quadInOut"),
+            "continuous": False,
         }
 
     def handle_key_press(evt):
@@ -298,6 +304,7 @@ def configure_scene_in_viewer(use_fresh=False):
             animation_state["rotation_speed"] = config_from_file["speed"]
             animation_state["pause_duration"] = config_from_file["pause"]
             animation_state["rotations"] = config_from_file["rotations"]
+            animation_state["continuous"] = config_from_file["continuous"]
 
             if config_from_file["easing"] != animation_state["easing_type"]:
                 animation_state["easing_type"] = config_from_file["easing"]
@@ -306,7 +313,8 @@ def configure_scene_in_viewer(use_fresh=False):
                 )
 
         if animation_state["rotation_enabled"]:
-            if animation_state["is_paused"]:
+            # Skip pause logic if in continuous mode
+            if not animation_state["continuous"] and animation_state["is_paused"]:
                 current_time = time.time()
                 elapsed_pause = current_time - animation_state["pause_start_time"]
                 if elapsed_pause >= animation_state["pause_duration"]:
@@ -388,8 +396,11 @@ def configure_scene_in_viewer(use_fresh=False):
                     animation_state["rotation_progress"] = 0.0
                     animation_state["total_rotation"] = 0.0
                     animation_state["current_rotation"] = 0
-                    animation_state["is_paused"] = True
-                    animation_state["pause_start_time"] = time.time()
+
+                    # Only pause if not in continuous mode
+                    if not animation_state["continuous"]:
+                        animation_state["is_paused"] = True
+                        animation_state["pause_start_time"] = time.time()
                 else:
                     animation_state["rotation_progress"] = 0.0
                     animation_state["total_rotation"] = 0.0
@@ -415,6 +426,7 @@ def configure_scene_in_viewer(use_fresh=False):
     print("  elevation    : Vertical angle (-90° to +90°)")
     print("  speed        : Rotation speed (0-10°/frame)")
     print("  pause        : Pause duration after rotation sequence (seconds)")
+    print("  continuous   : Enable continuous rotation without pauses")
     print("  rotations    : Number of full rotations (1=360°, 2=720°, etc.)")
     print("  easing       : Animation easing function (see config.yaml for options)")
     print("\nUtility:")

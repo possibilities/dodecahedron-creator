@@ -6,13 +6,17 @@ elevation: 0
 
 # Maximum rotation speed in degrees per frame (0-10)
 # The rotation will ease in and out, reaching this speed at the midpoint
-speed: 5.0
+speed: 5.7
 
 # Pause duration in seconds after each 360 degree rotation
-pause: 0.0
+pause: 0.1
+
+# Continuous mode - when true, rotation continues smoothly without pauses
+# The easing function creates natural speed variations at rotation boundaries
+continuous: false
 
 # Number of full rotations before pausing (1 = 360°, 2 = 720°, etc.)
-rotations: 1
+rotations: 2
 
 # Easing function for rotation animation
 # Available options: linear, quadIn, quadOut, quadInOut, cubicIn, cubicOut, 
