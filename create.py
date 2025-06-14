@@ -19,6 +19,33 @@ SCENE_CONFIG_PATH = "build/scene.json"
 CONFIG_FILE_PATH = "config.yaml"
 GIF_PATH = "build/animation.gif"
 
+TIMER_INTERVAL_MS = 20
+VIEWER_FPS = 50
+DEGREES_PER_ROTATION = 360.0
+MS_PER_SECOND = 1000.0
+MIN_GIF_FRAME_DURATION_MS = 20
+
+FOV_ADJUSTMENT_STEP = 5
+MAX_FOV_DEGREES = 120
+MIN_FOV_DEGREES = 5
+DEFAULT_VIEWER_SIZE = (1400, 900)
+
+DEFAULT_SVG_STROKE_WIDTH = 12
+DEFAULT_MESH_LINE_WIDTH = 4
+DEFAULT_BACKGROUND_COLOR = "white"
+DEFAULT_MESH_COLOR = "black"
+DEFAULT_EDGE_COLOR = [1, 1, 1]
+DEFAULT_SVG_FILL = "black"
+DEFAULT_SVG_STROKE = "white"
+
+FRAMES_DIR = "build/frames"
+FRAME_JSON_PATTERN = "frame_*.json"
+FRAME_SVG_PATTERN = "frame_*.svg"
+FRAME_FILENAME_FORMAT = "frame_{:04d}.json"
+
+BBOX_PADDING_MULTIPLIER = 2
+IDENTITY_MATRIX_4X4 = [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
+
 
 def read_config_file():
     try:
@@ -271,7 +298,7 @@ def calculate_rotation_and_apply(animation_state, plotter, mesh):
     rotation_axis = rotation_axis / np.linalg.norm(rotation_axis)
 
     max_speed = animation_state["rotation_speed"]
-    progress_increment = max_speed / 360.0
+    progress_increment = max_speed / DEGREES_PER_ROTATION
     new_progress = animation_state["rotation_progress"] + progress_increment
 
     if new_progress >= 1.0:
@@ -289,13 +316,15 @@ def calculate_rotation_and_apply(animation_state, plotter, mesh):
     eased_overall_previous = animation_state["easing_func"](prev_overall_progress)
 
     rotation_amount = (eased_overall_current - eased_overall_previous) * (
-        total_rotations * 360.0
+        total_rotations * DEGREES_PER_ROTATION
     )
 
     mesh.rotate(rotation_amount, axis=rotation_axis, point=mesh.pos())
 
     animation_state["rotation_progress"] = new_progress
-    animation_state["total_rotation"] = overall_progress * (total_rotations * 360.0)
+    animation_state["total_rotation"] = overall_progress * (
+        total_rotations * DEGREES_PER_ROTATION
+    )
 
     return new_progress
 
@@ -305,8 +334,8 @@ def handle_frame_capture(animation_state, plotter, mesh, config):
         animation_state["capture_fps"] > 0
         and not animation_state["first_cycle_complete"]
     ):
-        current_time = time.time() * 1000
-        frame_interval = 1000.0 / animation_state["capture_fps"]
+        current_time = time.time() * MS_PER_SECOND
+        frame_interval = MS_PER_SECOND / animation_state["capture_fps"]
 
         if current_time - animation_state["last_capture_time"] >= frame_interval:
             animation_state["frame_counter"] += 1
@@ -331,7 +360,7 @@ def handle_rotation_completion(animation_state):
                 and animation_state["frame_counter"] > 0
             ):
                 print(
-                    f"\nFrame capture complete: {animation_state['frame_counter']} JSON frames saved to build/frames/"
+                    f"\nFrame capture complete: {animation_state['frame_counter']} JSON frames saved to {FRAMES_DIR}/"
                 )
 
             if not animation_state["continuous"]:
@@ -346,7 +375,7 @@ def handle_key_press(evt, plotter, animation_state, mesh, config):
     if evt.keypress == "Up":
         cam = plotter.camera
         current_fov = cam.GetViewAngle()
-        new_fov = min(current_fov + 5, 120)
+        new_fov = min(current_fov + FOV_ADJUSTMENT_STEP, MAX_FOV_DEGREES)
         cam.SetViewAngle(new_fov)
         print(f"FOV increased to {new_fov}°")
         plotter.render()
@@ -368,11 +397,11 @@ def handle_key_press(evt, plotter, animation_state, mesh, config):
         if animation_state["rotation_enabled"]:
             animation_state["initial_transform"] = mesh.transform.clone()
             animation_state["frame_counter"] = 0
-            animation_state["last_capture_time"] = time.time() * 1000
+            animation_state["last_capture_time"] = time.time() * MS_PER_SECOND
             animation_state["first_cycle_complete"] = False
 
             if animation_state["capture_fps"] > 0:
-                frames_dir = "build/frames"
+                frames_dir = FRAMES_DIR
                 existing_files = glob.glob(os.path.join(frames_dir, "frame_*.json"))
                 existing_files.extend(
                     glob.glob(os.path.join(frames_dir, "frame_*.svg"))
@@ -498,7 +527,7 @@ def setup_animation_state():
         else:
             print(f"  Pause: {initial_config['pause']}s after each rotation")
         print(
-            f"  Rotations: {initial_config['rotations']} ({initial_config['rotations'] * 360}° total)"
+            f"  Rotations: {initial_config['rotations']} ({initial_config['rotations'] * int(DEGREES_PER_ROTATION)}° total)"
         )
         print(f"  Easing: {initial_config['easing']}")
         if initial_config["capture_fps"] > 0:
@@ -547,17 +576,19 @@ def print_keybindings():
     print("  Mouse Left   : Rotate camera")
     print("  Mouse Right  : Zoom/dolly")
     print("  Mouse Middle : Pan/translate")
-    print("  Up Arrow     : Increase FOV by 5°")
-    print("  Down Arrow   : Decrease FOV by 5°")
+    print(f"  Up Arrow     : Increase FOV by {FOV_ADJUSTMENT_STEP}°")
+    print(f"  Down Arrow   : Decrease FOV by {FOV_ADJUSTMENT_STEP}°")
     print("\nAnimation:")
     print("  Spacebar     : Toggle rotation animation")
     print("\nRotation Controls (via config.yaml):")
-    print("  azimuth      : Horizontal angle (0-360°)")
+    print(f"  azimuth      : Horizontal angle (0-{int(DEGREES_PER_ROTATION)}°)")
     print("  elevation    : Vertical angle (-90° to +90°)")
     print("  speed        : Rotation speed (0-10°/frame)")
     print("  pause        : Pause duration after rotation sequence (seconds)")
     print("  continuous   : Enable continuous rotation without pauses")
-    print("  rotations    : Number of full rotations (1=360°, 2=720°, etc.)")
+    print(
+        f"  rotations    : Number of full rotations (1={int(DEGREES_PER_ROTATION)}°, 2={int(DEGREES_PER_ROTATION) * 2}°, etc.)"
+    )
     print("  easing       : Animation easing function (see config.yaml for options)")
     print("\nUtility:")
     print("  q            : Quit and save scene")
@@ -586,235 +617,6 @@ def configure_scene_in_viewer(use_fresh=False):
 
     was_saved = save_configuration(plotter, mesh, config, animation_state)
     plotter.close()
-    return was_saved
-
-    def handle_key_press(evt):
-        if evt.keypress == "Up":
-            cam = plotter.camera
-            current_fov = cam.GetViewAngle()
-            new_fov = min(current_fov + 5, 120)
-            cam.SetViewAngle(new_fov)
-            print(f"FOV increased to {new_fov}°")
-            plotter.render()
-        elif evt.keypress == "Down":
-            cam = plotter.camera
-            current_fov = cam.GetViewAngle()
-            new_fov = max(current_fov - 5, 5)
-            cam.SetViewAngle(new_fov)
-            print(f"FOV decreased to {new_fov}°")
-            plotter.render()
-        elif evt.keypress == "space":
-            animation_state["rotation_enabled"] = not animation_state[
-                "rotation_enabled"
-            ]
-            animation_state["total_rotation"] = 0.0
-            animation_state["is_paused"] = False
-            animation_state["pause_start_time"] = None
-            animation_state["rotation_progress"] = 0.0
-            animation_state["current_rotation"] = 0
-
-            if animation_state["rotation_enabled"]:
-                animation_state["initial_transform"] = mesh.transform.clone()
-                animation_state["frame_counter"] = 0
-                animation_state["last_capture_time"] = time.time() * 1000
-                animation_state["first_cycle_complete"] = False
-
-                if animation_state["capture_fps"] > 0:
-                    frames_dir = "build/frames"
-                    existing_files = glob.glob(os.path.join(frames_dir, "frame_*.json"))
-                    existing_files.extend(
-                        glob.glob(os.path.join(frames_dir, "frame_*.svg"))
-                    )
-
-                    if existing_files:
-                        for f in existing_files:
-                            os.remove(f)
-                        print(f"Cleared {len(existing_files)} existing frame files")
-
-                    print(
-                        f"Frame capture enabled: {animation_state['capture_fps']} fps (JSON) - first animation cycle ({animation_state['rotations']} rotation{'s' if animation_state['rotations'] != 1 else ''})"
-                    )
-
-            status = "started" if animation_state["rotation_enabled"] else "stopped"
-            print(f"Rotation animation {status}")
-
-    def handle_timer(evt):
-        config_from_file = read_config_file()
-        if config_from_file is not None:
-            animation_state["rotation_azimuth"] = config_from_file["azimuth"]
-            animation_state["rotation_elevation"] = config_from_file["elevation"]
-            animation_state["rotation_speed"] = config_from_file["speed"]
-            animation_state["pause_duration"] = config_from_file["pause"]
-            animation_state["rotations"] = config_from_file["rotations"]
-            animation_state["continuous"] = config_from_file["continuous"]
-            animation_state["capture_fps"] = config_from_file["capture_fps"]
-
-            if config_from_file["easing"] != animation_state["easing_type"]:
-                animation_state["easing_type"] = config_from_file["easing"]
-                animation_state["easing_func"] = get_easing_function(
-                    config_from_file["easing"]
-                )
-
-        if animation_state["rotation_enabled"]:
-            if not animation_state["continuous"] and animation_state["is_paused"]:
-                current_time = time.time()
-                elapsed_pause = current_time - animation_state["pause_start_time"]
-                if elapsed_pause >= animation_state["pause_duration"]:
-                    animation_state["is_paused"] = False
-                    animation_state["pause_start_time"] = None
-                else:
-                    return
-
-            azimuth_rad = np.radians(animation_state["rotation_azimuth"])
-            elevation_rad = np.radians(animation_state["rotation_elevation"])
-
-            camera = plotter.camera
-            camera_pos = np.array(camera.GetPosition())
-            focal_point = np.array(camera.GetFocalPoint())
-            camera_up = np.array(camera.GetViewUp())
-
-            view_direction = focal_point - camera_pos
-            view_direction = view_direction / np.linalg.norm(view_direction)
-
-            camera_right = np.cross(view_direction, camera_up)
-            camera_right = camera_right / np.linalg.norm(camera_right)
-
-            camera_up = np.cross(camera_right, view_direction)
-            camera_up = camera_up / np.linalg.norm(camera_up)
-
-            rotation_axis_camera = np.array(
-                [
-                    -np.sin(azimuth_rad),
-                    np.cos(elevation_rad) * np.cos(azimuth_rad),
-                    np.sin(elevation_rad),
-                ]
-            )
-
-            rotation_axis = (
-                rotation_axis_camera[0] * camera_right
-                + rotation_axis_camera[1] * camera_up
-                + rotation_axis_camera[2] * view_direction
-            )
-
-            rotation_axis = rotation_axis / np.linalg.norm(rotation_axis)
-
-            max_speed = animation_state["rotation_speed"]
-
-            progress_increment = max_speed / 360.0
-
-            new_progress = animation_state["rotation_progress"] + progress_increment
-
-            if new_progress >= 1.0:
-                new_progress = 1.0
-
-            total_rotations = animation_state["rotations"]
-            current_rotation = animation_state["current_rotation"]
-            overall_progress = (current_rotation + new_progress) / total_rotations
-
-            eased_overall_current = animation_state["easing_func"](overall_progress)
-
-            prev_overall_progress = (
-                current_rotation + animation_state["rotation_progress"]
-            ) / total_rotations
-            eased_overall_previous = animation_state["easing_func"](
-                prev_overall_progress
-            )
-
-            rotation_amount = (eased_overall_current - eased_overall_previous) * (
-                total_rotations * 360.0
-            )
-
-            mesh.rotate(rotation_amount, axis=rotation_axis, point=mesh.pos())
-
-            animation_state["rotation_progress"] = new_progress
-            animation_state["total_rotation"] = overall_progress * (
-                total_rotations * 360.0
-            )
-
-            if (
-                animation_state["capture_fps"] > 0
-                and not animation_state["first_cycle_complete"]
-            ):
-                current_time = time.time() * 1000  # milliseconds
-                frame_interval = 1000.0 / animation_state["capture_fps"]
-
-                if (
-                    current_time - animation_state["last_capture_time"]
-                    >= frame_interval
-                ):
-                    animation_state["frame_counter"] += 1
-                    capture_frame_as_json(
-                        plotter, mesh, animation_state["frame_counter"], config
-                    )
-                    animation_state["last_capture_time"] = current_time
-
-            if new_progress >= 1.0:
-                animation_state["current_rotation"] += 1
-
-                if animation_state["current_rotation"] >= animation_state["rotations"]:
-                    animation_state["rotation_progress"] = 0.0
-                    animation_state["total_rotation"] = 0.0
-                    animation_state["current_rotation"] = 0
-                    animation_state["first_cycle_complete"] = True
-
-                    if (
-                        animation_state["capture_fps"] > 0
-                        and animation_state["frame_counter"] > 0
-                    ):
-                        print(
-                            f"\nFrame capture complete: {animation_state['frame_counter']} JSON frames saved to build/frames/"
-                        )
-
-                    if not animation_state["continuous"]:
-                        animation_state["is_paused"] = True
-                        animation_state["pause_start_time"] = time.time()
-                else:
-                    animation_state["rotation_progress"] = 0.0
-                    animation_state["total_rotation"] = 0.0
-
-            plotter.render()
-
-    plotter.add_callback("on key press", handle_key_press)
-    plotter.add_callback("timer", handle_timer, enable_picking=False)
-
-    plotter.timer_callback("create", dt=20)
-
-    print("\n=== Keybindings ===")
-    print("Camera Controls:")
-    print("  Mouse Left   : Rotate camera")
-    print("  Mouse Right  : Zoom/dolly")
-    print("  Mouse Middle : Pan/translate")
-    print("  Up Arrow     : Increase FOV by 5°")
-    print("  Down Arrow   : Decrease FOV by 5°")
-    print("\nAnimation:")
-    print("  Spacebar     : Toggle rotation animation")
-    print("\nRotation Controls (via config.yaml):")
-    print("  azimuth      : Horizontal angle (0-360°)")
-    print("  elevation    : Vertical angle (-90° to +90°)")
-    print("  speed        : Rotation speed (0-10°/frame)")
-    print("  pause        : Pause duration after rotation sequence (seconds)")
-    print("  continuous   : Enable continuous rotation without pauses")
-    print("  rotations    : Number of full rotations (1=360°, 2=720°, etc.)")
-    print("  easing       : Animation easing function (see config.yaml for options)")
-    print("\nUtility:")
-    print("  q            : Quit and save scene")
-    print("  r            : Reset camera")
-    print("  s            : Screenshot")
-    print("==================\n")
-
-    config_file = SCENE_CONFIG_PATH
-    setup_camera(plotter, config)
-    if not use_fresh and os.path.exists(config_file) and config["camera"]:
-        plotter.show(axes=0, interactive=False, resetcam=False)
-    else:
-        plotter.show(axes=0, interactive=False, resetcam=True)
-
-    run_interactive_session(plotter)
-
-    was_saved = save_configuration(plotter, mesh, config, animation_state)
-
-    plotter.close()
-
     return was_saved
 
 
@@ -969,7 +771,7 @@ def get_global_bounding_box(config):
             max(abs(p[1] - center_y) for p in svg_points),
         )
 
-        padding = config["svg"]["stroke_width"] * 2
+        padding = config["svg"]["stroke_width"] * BBOX_PADDING_MULTIPLIER
         radius += padding
         return {
             "min_x": center_x - radius,
@@ -1219,16 +1021,18 @@ def create_animated_gif(png_paths, output_path, capture_fps, animation_config):
             images.append(img)
 
     if images:
-        viewer_fps = 50
+        viewer_fps = VIEWER_FPS
         degrees_per_viewer_frame = animation_config.get("speed", 1.0)
-        total_degrees = animation_config.get("rotations", 1) * 360
+        total_degrees = animation_config.get("rotations", 1) * DEGREES_PER_ROTATION
 
         viewer_frames_for_animation = total_degrees / degrees_per_viewer_frame
-        total_animation_time_ms = (viewer_frames_for_animation / viewer_fps) * 1000
+        total_animation_time_ms = (
+            viewer_frames_for_animation / viewer_fps
+        ) * MS_PER_SECOND
 
         duration_per_frame = int(total_animation_time_ms / len(images))
 
-        duration_per_frame = max(duration_per_frame, 20)
+        duration_per_frame = max(duration_per_frame, MIN_GIF_FRAME_DURATION_MS)
 
         images[0].save(
             output_path,
@@ -1238,12 +1042,12 @@ def create_animated_gif(png_paths, output_path, capture_fps, animation_config):
             loop=0,
         )
 
-        actual_fps = 1000 / duration_per_frame
+        actual_fps = MS_PER_SECOND / duration_per_frame
         print(f"Created animated GIF: {output_path}")
         print(f"  Frames: {len(images)}")
         print(f"  Duration per frame: {duration_per_frame}ms")
         print(f"  Effective playback rate: {actual_fps:.1f} fps")
-        print(f"  Total animation time: {total_animation_time_ms / 1000:.2f}s")
+        print(f"  Total animation time: {total_animation_time_ms / MS_PER_SECOND:.2f}s")
         return True
     return False
 
@@ -1258,7 +1062,7 @@ def create_svg_from_scene():
     svg_path = create_svg_from_json(SCENE_CONFIG_PATH, SVG_PATH)
     print(f"SVG saved as {svg_path}")
 
-    frame_json_files = sorted(glob.glob("build/frames/frame_*.json"))
+    frame_json_files = sorted(glob.glob(os.path.join(FRAMES_DIR, FRAME_JSON_PATTERN)))
 
     if frame_json_files:
         print(f"\nConverting {len(frame_json_files)} frame JSON files to SVG...")
