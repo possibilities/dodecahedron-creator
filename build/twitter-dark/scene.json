@@ -53,12 +53,12 @@
         1.0
       ]
     ],
-    "color": "#515151",
+    "color": "#ededed",
     "linewidth": 4,
     "edge_color": [
-      1.0,
-      1.0,
-      1.0
+      0.0,
+      0.0,
+      0.0
     ]
   },
   "viewport": {
@@ -66,16 +66,16 @@
       2552,
       1432
     ],
-    "background_color": "#ffffff"
+    "background_color": "#000000"
   },
   "svg": {
-    "name": "modern-minimal-light",
-    "background": "#ffffff",
-    "foreground": "#515151",
+    "name": "twitter-dark",
+    "background": "#000000",
+    "foreground": "#ededed",
     "stroke_width": 12,
     "stroke_linecap": "round",
     "stroke_linejoin": "round",
-    "fill": "#515151",
-    "stroke": "#ffffff"
+    "fill": "#ededed",
+    "stroke": "#000000"
   }
 }

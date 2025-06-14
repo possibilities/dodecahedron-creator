@@ -37,17 +37,30 @@ capture_fps: 30
 # Width will be calculated proportionally based on viewport aspect ratio
 raster_height: 100
 
-# Common stroke settings for all styles
+# Common stroke settings for all themes
 stroke_width: 12
 stroke_linecap: "round"
 stroke_linejoin: "round"
 
-# Style variations for output
-styles:
-  - name: "black-on-white"
-    background: "white"
-    foreground: "black"
-  
-  - name: "white-on-black"
-    background: "black"
-    foreground: "white"
+# Themes to use from themes.json
+themes:
+  - "mono-light"
+  - "mono-dark"
+  - "modern-minimal-light"
+  - "modern-minimal-dark"
+  - "twitter-light"
+  - "twitter-dark"
+  - "catppuccin-light"
+  - "catppuccin-dark"
+  - "graphite-light"
+  - "graphite-dark"
+  - "nature-light"
+  - "nature-dark"
+  - "supabase-light"
+  - "supabase-dark"
+  - "neo-brutalism-light"
+  - "neo-brutalism-dark"
+  - "cosmic-night-light"
+  - "cosmic-night-dark"
+  - "quantum-rose-light"
+  - "quantum-rose-dark"
