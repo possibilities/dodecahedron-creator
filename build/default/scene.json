@@ -1,0 +1,80 @@
+{
+  "camera": {
+    "position": [
+      2.4589770018513506,
+      2.860654894841967,
+      5.5526565404246995
+    ],
+    "focal_point": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "view_up": [
+      -0.05222475433592076,
+      0.8969764243458335,
+      -0.4389827664069696
+    ],
+    "view_angle": 30.0,
+    "clipping_range": [
+      3.35461563153594,
+      10.95629183002395
+    ]
+  },
+  "mesh": {
+    "position": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "transform_matrix": [
+      [
+        1.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        1.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        1.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    ],
+    "color": "black",
+    "linewidth": 4,
+    "edge_color": [
+      1,
+      1,
+      1
+    ]
+  },
+  "viewport": {
+    "size": [
+      2552,
+      1432
+    ],
+    "background_color": "white"
+  },
+  "svg": {
+    "name": "default",
+    "stroke_width": 12,
+    "background": "white",
+    "fill": "black",
+    "stroke": "white",
+    "stroke_linecap": "round",
+    "stroke_linejoin": "round"
+  }
+}

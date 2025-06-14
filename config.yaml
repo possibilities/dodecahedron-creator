@@ -37,22 +37,39 @@ capture_fps: 30
 # Width will be calculated proportionally based on viewport aspect ratio
 raster_height: 100
 
-# SVG drawing parameters
-svg:
-  # Thickness of edge lines in pixels
-  stroke_width: 12
+# Style variations for output
+styles:
+  - name: "default"
+    # Thickness of edge lines in pixels
+    stroke_width: 12
+    
+    # SVG background color
+    background: "white"
+    
+    # Color of the filled dodecahedron shape
+    fill: "black"
+    
+    # Color of the edge lines
+    stroke: "white"
+    
+    # Line end style: round, butt, or square
+    stroke_linecap: "round"
+    
+    # Line corner style: round, bevel, or miter
+    stroke_linejoin: "round"
   
-  # SVG background color
-  background: "white"
+  - name: "blueprint"
+    stroke_width: 8
+    background: "#0A2239"
+    fill: "#1E5F8E"
+    stroke: "#5EB3FD"
+    stroke_linecap: "round"
+    stroke_linejoin: "round"
   
-  # Color of the filled dodecahedron shape
-  fill: "black"
-  
-  # Color of the edge lines
-  stroke: "white"
-  
-  # Line end style: round, butt, or square
-  stroke_linecap: "round"
-  
-  # Line corner style: round, bevel, or miter
-  stroke_linejoin: "round"
+  - name: "sunset"
+    stroke_width: 10
+    background: "#FFF5E1"
+    fill: "#FF6B6B"
+    stroke: "#FFE66D"
+    stroke_linecap: "round"
+    stroke_linejoin: "round"

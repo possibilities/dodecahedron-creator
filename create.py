@@ -13,12 +13,11 @@ import cairosvg
 import glob
 import re
 from PIL import Image
+import copy
 
 MODEL_PATH = "resources/dodecahedron.obj"
-SVG_PATH = "build/dodecahedron.svg"
-SCENE_CONFIG_PATH = "build/scene.json"
 CONFIG_FILE_PATH = "config.yaml"
-GIF_PATH = "build/animation.gif"
+SHARED_SCENE_PATH = "build/shared_scene.json"
 
 TIMER_INTERVAL_MS = 20
 VIEWER_FPS = 50
@@ -39,7 +38,6 @@ DEFAULT_EDGE_COLOR = [1, 1, 1]
 DEFAULT_SVG_FILL = "black"
 DEFAULT_SVG_STROKE = "white"
 
-FRAMES_DIR = "build/frames"
 FRAME_JSON_PATTERN = "frame_*.json"
 FRAME_SVG_PATTERN = "frame_*.svg"
 FRAME_FILENAME_FORMAT = "frame_{:04d}.json"
@@ -95,6 +93,33 @@ def color_to_rgb(color):
     return [1, 1, 1]
 
 
+def get_build_dir(style_name=None):
+    """Get the build directory for a specific style."""
+    if style_name:
+        return os.path.join("build", style_name)
+    return "build"
+
+
+def get_svg_path(style_name):
+    """Get the SVG output path for a specific style."""
+    return os.path.join(get_build_dir(style_name), "dodecahedron.svg")
+
+
+def get_scene_config_path(style_name):
+    """Get the scene config path for a specific style."""
+    return os.path.join(get_build_dir(style_name), "scene.json")
+
+
+def get_frames_dir(style_name):
+    """Get the frames directory for a specific style."""
+    return os.path.join(get_build_dir(style_name), "frames")
+
+
+def get_gif_path(style_name):
+    """Get the GIF output path for a specific style."""
+    return os.path.join(get_build_dir(style_name), "animation.gif")
+
+
 class SvgGenerationContext:
     def __init__(self):
         self.global_bbox = None
@@ -112,6 +137,24 @@ def read_config_file():
     try:
         with open(CONFIG_FILE_PATH, "r") as f:
             config = yaml.safe_load(f)
+
+            # Handle new styles format
+            styles = config.get("styles", [])
+            if not styles:
+                # Fallback to legacy svg section if no styles defined
+                svg_config = config.get(
+                    "svg",
+                    {
+                        "stroke_width": DEFAULT_SVG_STROKE_WIDTH,
+                        "background": DEFAULT_BACKGROUND_COLOR,
+                        "fill": DEFAULT_SVG_FILL,
+                        "stroke": DEFAULT_SVG_STROKE,
+                        "stroke_linecap": "round",
+                        "stroke_linejoin": "round",
+                    },
+                )
+                styles = [{"name": "default", **svg_config}]
+
             return {
                 "azimuth": config.get("azimuth", 0),
                 "elevation": config.get("elevation", 0),
@@ -122,49 +165,53 @@ def read_config_file():
                 "continuous": config.get("continuous", False),
                 "capture_fps": config.get("capture_fps", 0),
                 "raster_height": config.get("raster_height", 100),
-                "svg": config.get(
-                    "svg",
-                    {
-                        "stroke_width": DEFAULT_SVG_STROKE_WIDTH,
-                        "background": DEFAULT_BACKGROUND_COLOR,
-                        "fill": DEFAULT_SVG_FILL,
-                        "stroke": DEFAULT_SVG_STROKE,
-                        "stroke_linecap": "round",
-                        "stroke_linejoin": "round",
-                    },
-                ),
+                "styles": styles,
+                # Keep first style as default for backward compatibility
+                "svg": styles[0]
+                if styles
+                else {
+                    "stroke_width": DEFAULT_SVG_STROKE_WIDTH,
+                    "background": DEFAULT_BACKGROUND_COLOR,
+                    "fill": DEFAULT_SVG_FILL,
+                    "stroke": DEFAULT_SVG_STROKE,
+                    "stroke_linecap": "round",
+                    "stroke_linejoin": "round",
+                },
             }
     except Exception:
         return None
 
 
-def load_configuration(ignore_saved=False):
-    config_file = SCENE_CONFIG_PATH
+def load_configuration(ignore_saved=False, scene_path=None, style=None):
+    config_file = scene_path or SHARED_SCENE_PATH
 
-    # Always read SVG settings from config.yaml to use as source of truth
-    config_from_file = read_config_file()
-    svg_settings = (
-        config_from_file.get(
-            "svg",
-            {
+    # Use provided style or get from config file
+    if style:
+        svg_settings = style
+    else:
+        config_from_file = read_config_file()
+        svg_settings = (
+            config_from_file.get(
+                "svg",
+                {
+                    "stroke_width": DEFAULT_SVG_STROKE_WIDTH,
+                    "background": DEFAULT_BACKGROUND_COLOR,
+                    "fill": DEFAULT_SVG_FILL,
+                    "stroke": DEFAULT_SVG_STROKE,
+                    "stroke_linecap": "round",
+                    "stroke_linejoin": "round",
+                },
+            )
+            if config_from_file
+            else {
                 "stroke_width": DEFAULT_SVG_STROKE_WIDTH,
                 "background": DEFAULT_BACKGROUND_COLOR,
                 "fill": DEFAULT_SVG_FILL,
                 "stroke": DEFAULT_SVG_STROKE,
                 "stroke_linecap": "round",
                 "stroke_linejoin": "round",
-            },
+            }
         )
-        if config_from_file
-        else {
-            "stroke_width": DEFAULT_SVG_STROKE_WIDTH,
-            "background": DEFAULT_BACKGROUND_COLOR,
-            "fill": DEFAULT_SVG_FILL,
-            "stroke": DEFAULT_SVG_STROKE,
-            "stroke_linecap": "round",
-            "stroke_linejoin": "round",
-        }
-    )
 
     if not ignore_saved and os.path.exists(config_file):
         with open(config_file, "r") as f:
@@ -175,7 +222,7 @@ def load_configuration(ignore_saved=False):
         config["viewport"]["background_color"] = svg_settings.get("background", "white")
         config["mesh"]["color"] = svg_settings.get("fill", "black")
         config["mesh"]["edge_color"] = color_to_rgb(svg_settings.get("stroke", "white"))
-        print(f"Loaded scene from {SCENE_CONFIG_PATH}")
+        print(f"Loaded scene from {config_file}")
         return config
     else:
         if ignore_saved:
@@ -240,8 +287,9 @@ def run_interactive_session(plotter):
     plotter.interactive()
 
 
-def save_configuration(plotter, mesh, config, animation_state):
+def save_configuration(plotter, mesh, config, animation_state, scene_path=None):
     camera = plotter.camera
+    save_path = scene_path or SHARED_SCENE_PATH
 
     final_position = list(camera.GetPosition())
     final_focal_point = list(camera.GetFocalPoint())
@@ -304,11 +352,11 @@ def save_configuration(plotter, mesh, config, animation_state):
         "svg": svg_settings,
     }
 
-    os.makedirs("build", exist_ok=True)
-    with open(SCENE_CONFIG_PATH, "w") as f:
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    with open(save_path, "w") as f:
         json.dump(scene_data, f, indent=2)
 
-    print(f"Saved scene to {SCENE_CONFIG_PATH}")
+    print(f"Saved scene to {save_path}")
     return True
 
 
@@ -570,7 +618,7 @@ def handle_timer(evt, plotter, mesh, config, animation_state, mode="positioning"
         plotter.render()
 
 
-def capture_frame_as_json(plotter, mesh, frame_number, config):
+def capture_frame_as_json(plotter, mesh, frame_number, config, style_name=None):
     camera = plotter.camera
 
     transform_matrix = (
@@ -590,29 +638,17 @@ def capture_frame_as_json(plotter, mesh, frame_number, config):
         print(f"  Frame 1 - Camera focal point: {list(camera.GetFocalPoint())}")
         print(f"  Frame 1 - Using focal point: {focal_point}")
 
-    # Always read fresh SVG settings from config.yaml
-    config_from_file = read_config_file()
-    svg_settings = (
-        config_from_file.get(
-            "svg",
-            {
-                "stroke_width": DEFAULT_SVG_STROKE_WIDTH,
-                "background": DEFAULT_BACKGROUND_COLOR,
-                "fill": DEFAULT_SVG_FILL,
-                "stroke": DEFAULT_SVG_STROKE,
-                "stroke_linecap": "round",
-                "stroke_linejoin": "round",
-            },
-        )
-        if config_from_file
-        else {
+    # Use SVG settings from the config parameter (which has the style-specific settings)
+    svg_settings = config.get(
+        "svg",
+        {
             "stroke_width": DEFAULT_SVG_STROKE_WIDTH,
             "background": DEFAULT_BACKGROUND_COLOR,
             "fill": DEFAULT_SVG_FILL,
             "stroke": DEFAULT_SVG_STROKE,
             "stroke_linecap": "round",
             "stroke_linejoin": "round",
-        }
+        },
     )
 
     scene_data = {
@@ -637,7 +673,7 @@ def capture_frame_as_json(plotter, mesh, frame_number, config):
         "svg": svg_settings,
     }
 
-    frames_dir = FRAMES_DIR
+    frames_dir = get_frames_dir(style_name) if style_name else "build/frames"
     os.makedirs(frames_dir, exist_ok=True)
     json_path = os.path.join(frames_dir, f"frame_{frame_number:04d}.json")
 
@@ -647,8 +683,10 @@ def capture_frame_as_json(plotter, mesh, frame_number, config):
     print(f"  Captured frame {frame_number} -> {json_path}")
 
 
-def setup_scene_components(use_fresh=False):
-    config = load_configuration(ignore_saved=use_fresh)
+def setup_scene_components(use_fresh=False, scene_path=None, style=None):
+    config = load_configuration(
+        ignore_saved=use_fresh, scene_path=scene_path, style=style
+    )
     mesh = setup_mesh(config)
     plotter = create_viewer(config)
     plotter.add(mesh)
@@ -761,8 +799,10 @@ def print_keybindings(mode="positioning"):
     print("==================\n")
 
 
-def run_interactive_viewer(plotter, config, use_fresh, mode="positioning"):
-    config_file = SCENE_CONFIG_PATH
+def run_interactive_viewer(
+    plotter, config, use_fresh, mode="positioning", scene_path=None
+):
+    config_file = scene_path if scene_path else get_scene_config_path(None)
     setup_camera(plotter, config)
     if not use_fresh and os.path.exists(config_file) and config["camera"]:
         plotter.show(axes=0, interactive=False, resetcam=False)
@@ -772,8 +812,12 @@ def run_interactive_viewer(plotter, config, use_fresh, mode="positioning"):
     run_interactive_session(plotter)
 
 
-def configure_scene_in_viewer(use_fresh=False, mode="positioning"):
-    config, mesh, plotter = setup_scene_components(use_fresh)
+def configure_scene_in_viewer(
+    use_fresh=False, mode="positioning", scene_path=None, style=None
+):
+    config, mesh, plotter = setup_scene_components(
+        use_fresh, scene_path=scene_path, style=style
+    )
     animation_state = setup_animation_state()
     register_event_handlers(plotter, mesh, config, animation_state, mode)
 
@@ -825,10 +869,12 @@ def configure_scene_in_viewer(use_fresh=False, mode="positioning"):
 
         print("\nAnimation started automatically")
 
-    run_interactive_viewer(plotter, config, use_fresh, mode)
+    run_interactive_viewer(plotter, config, use_fresh, mode, scene_path)
 
     if mode == "positioning":
-        was_saved = save_configuration(plotter, mesh, config, animation_state)
+        was_saved = save_configuration(
+            plotter, mesh, config, animation_state, scene_path=scene_path
+        )
     else:
         was_saved = False
 
@@ -836,8 +882,9 @@ def configure_scene_in_viewer(use_fresh=False, mode="positioning"):
     return was_saved
 
 
-def load_scene_data():
-    with open(SCENE_CONFIG_PATH, "r") as f:
+def load_scene_data(scene_path=None):
+    path = scene_path or SHARED_SCENE_PATH
+    with open(path, "r") as f:
         return json.load(f)
 
 
@@ -1277,15 +1324,19 @@ def create_animated_gif(png_paths, output_path, capture_fps, animation_config):
     return False
 
 
-def create_svg_from_scene():
-    print("Generating SVG...")
+def create_svg_from_scene(style_name=None):
+    print(f"Generating SVG{' for style: ' + style_name if style_name else ''}...")
 
     context = SvgGenerationContext()
 
-    svg_path = create_svg_from_json(SCENE_CONFIG_PATH, SVG_PATH, context)
-    print(f"SVG saved as {svg_path}")
+    scene_path = get_scene_config_path(style_name) if style_name else SHARED_SCENE_PATH
+    svg_path = get_svg_path(style_name) if style_name else "build/dodecahedron.svg"
+    frames_dir = get_frames_dir(style_name) if style_name else "build/frames"
 
-    frame_json_files = sorted(glob.glob(os.path.join(FRAMES_DIR, FRAME_JSON_PATTERN)))
+    svg_output = create_svg_from_json(scene_path, svg_path, context)
+    print(f"SVG saved as {svg_output}")
+
+    frame_json_files = sorted(glob.glob(os.path.join(frames_dir, FRAME_JSON_PATTERN)))
 
     if frame_json_files:
         print(f"\nConverting {len(frame_json_files)} frame JSON files to SVG...")
@@ -1311,17 +1362,20 @@ def create_svg_from_scene():
                 and config.get("capture_fps", 0) > 0
             ):
                 print(f"\nCreating animated GIF from {len(png_paths)} frames...")
-                create_animated_gif(png_paths, GIF_PATH, config["capture_fps"], config)
+                gif_path = (
+                    get_gif_path(style_name) if style_name else "build/animation.gif"
+                )
+                create_animated_gif(png_paths, gif_path, config["capture_fps"], config)
 
 
-def run_headless_recording(config):
+def run_headless_recording(config, style_name=None):
     """Run a headless animation cycle to capture frames"""
     print("\n" + "=" * 60)
-    print("HEADLESS RECORDING")
+    print(f"HEADLESS RECORDING{' for style: ' + style_name if style_name else ''}")
     print("=" * 60)
 
     # Clear existing frame files
-    frames_dir = FRAMES_DIR
+    frames_dir = get_frames_dir(style_name) if style_name else "build/frames"
     os.makedirs(frames_dir, exist_ok=True)
     existing_files = glob.glob(os.path.join(frames_dir, "frame_*.json"))
     existing_files.extend(glob.glob(os.path.join(frames_dir, "frame_*.svg")))
@@ -1374,7 +1428,11 @@ def run_headless_recording(config):
                 ):
                     animation_state["frame_counter"] += 1
                     capture_frame_as_json(
-                        plotter, mesh, animation_state["frame_counter"], config
+                        plotter,
+                        mesh,
+                        animation_state["frame_counter"],
+                        config,
+                        style_name,
                     )
                     animation_state["last_capture_time"] = current_time
                     frames_captured += 1
@@ -1393,7 +1451,11 @@ def run_headless_recording(config):
                     ):
                         animation_state["frame_counter"] += 1
                         capture_frame_as_json(
-                            plotter, mesh, animation_state["frame_counter"], config
+                            plotter,
+                            mesh,
+                            animation_state["frame_counter"],
+                            config,
+                            style_name,
                         )
                         frames_captured += 1
 
@@ -1416,15 +1478,10 @@ def run_headless_recording(config):
 
     plotter.close()
 
-    print(f"\nRecording complete: {frames_captured} JSON frames saved to {FRAMES_DIR}/")
+    print(f"\nRecording complete: {frames_captured} JSON frames saved to {frames_dir}/")
     print("=" * 60 + "\n")
 
     return frames_captured > 0
-
-
-def check_for_captured_frames():
-    frame_json_files = glob.glob(os.path.join(FRAMES_DIR, FRAME_JSON_PATTERN))
-    return len(frame_json_files) > 0
 
 
 def main():
@@ -1439,70 +1496,110 @@ def main():
     args = parser.parse_args()
 
     config = read_config_file()
-    capture_enabled = config and config.get("capture_fps", 0) > 0
+    if not config:
+        print("Error: Could not read config file")
+        return
+
+    capture_enabled = config.get("capture_fps", 0) > 0
+    styles = config.get("styles", [])
+
+    if not styles:
+        print("Error: No styles defined in config.yaml")
+        return
+
+    # Use first style for interactive positioning
+    first_style = styles[0]
+
+    print(f"\nConfigured styles: {', '.join(s['name'] for s in styles)}")
+    print(f"Using '{first_style['name']}' style for positioning\n")
 
     if capture_enabled:
-        print("\n" + "=" * 60)
-        print("THREE-PHASE WORKFLOW ENABLED")
         print("=" * 60)
-        print("Phase 1: Positioning for static SVG")
-        print("Phase 2: Animation preview")
-        print("Phase 3: Headless recording")
+        print("MULTI-STYLE WORKFLOW WITH ANIMATION")
+        print("=" * 60)
+        print("Phase 1: Camera positioning (once)")
+        print("Phase 2: Animation preview (once)")
+        print("Phase 3: Generate outputs for all styles")
+        print("=" * 60 + "\n")
+    else:
+        print("=" * 60)
+        print("MULTI-STYLE WORKFLOW")
+        print("=" * 60)
+        print("Phase 1: Camera positioning (once)")
+        print("Phase 2: Generate outputs for all styles")
         print("=" * 60 + "\n")
 
-        was_saved = configure_scene_in_viewer(use_fresh=args.fresh, mode="positioning")
+    # Phase 1: Interactive positioning with first style
+    was_saved = configure_scene_in_viewer(
+        use_fresh=args.fresh,
+        mode="positioning",
+        scene_path=SHARED_SCENE_PATH,
+        style=first_style,
+    )
 
-        if was_saved:
-            print("\n" + "=" * 60)
-            print("Positioning complete!")
-            print("Now opening animation preview...")
-            print("=" * 60 + "\n")
+    if not was_saved:
+        print("\nPositioning cancelled - no outputs will be generated.")
+        return
 
-            configure_scene_in_viewer(use_fresh=False, mode="animation")
+    # Phase 2: Animation preview (if enabled)
+    if capture_enabled:
+        print("\n" + "=" * 60)
+        print("Positioning complete!")
+        print("Now opening animation preview...")
+        print("=" * 60 + "\n")
 
-            print("\n" + "=" * 60)
-            print("Animation preview complete!")
-            print("Starting headless recording...")
-            print("=" * 60 + "\n")
+        configure_scene_in_viewer(
+            use_fresh=False,
+            mode="animation",
+            scene_path=SHARED_SCENE_PATH,
+            style=first_style,
+        )
 
-            # Load the saved scene configuration
-            scene_config = load_scene_data()
+    # Phase 3: Generate outputs for all styles
+    print("\n" + "=" * 60)
+    print("Generating outputs for all styles...")
+    print("=" * 60 + "\n")
 
-            # Run headless recording
-            frames_recorded = run_headless_recording(scene_config)
+    # Load the shared positioning
+    shared_config = load_scene_data(SHARED_SCENE_PATH)
 
-            if frames_recorded:
-                print("\n" + "=" * 60)
-                print("Headless recording complete!")
-                print("Generating outputs...")
-                print("=" * 60 + "\n")
-                create_svg_from_scene()
-            else:
-                print(
-                    "\nNo animation frames captured - only static SVG will be generated."
-                )
-                create_svg_from_scene()
-        else:
-            print("\nPositioning cancelled - no outputs will be generated.")
-    else:
-        was_saved = configure_scene_in_viewer(use_fresh=args.fresh, mode="positioning")
-        if was_saved:
-            create_svg_from_scene()
-        else:
-            print("\n" + "=" * 60)
-            print("⚠️  WARNING: ANIMATION WAS STILL RUNNING! ⚠️")
-            print("=" * 60)
-            print("Nothing was saved because the rotation animation was")
-            print("active when you closed the viewer.")
-            print("")
-            print("• Scene was NOT saved to scene.json")
-            print("• SVG was NOT generated")
-            print("")
-            print("To save your work:")
-            print("1. Run the program again")
-            print("2. Press SPACEBAR to stop the animation")
-            print("3. Then close the viewer")
-            print("=" * 60 + "\n")
+    for style in styles:
+        print(f"\n{'=' * 40}")
+        print(f"Processing style: {style['name']}")
+        print(f"{'=' * 40}\n")
+
+        # Create style-specific config by merging positioning with style colors
+        style_config = copy.deepcopy(shared_config)
+        style_config["svg"] = style
+        style_config["mesh"]["color"] = style.get("fill", "black")
+        style_config["mesh"]["edge_color"] = color_to_rgb(style.get("stroke", "white"))
+        style_config["viewport"]["background_color"] = style.get("background", "white")
+
+        # Save style-specific scene.json
+        style_dir = get_build_dir(style["name"])
+        os.makedirs(style_dir, exist_ok=True)
+        style_scene_path = get_scene_config_path(style["name"])
+        with open(style_scene_path, "w") as f:
+            json.dump(style_config, f, indent=2)
+        print(f"Saved style config to {style_scene_path}")
+
+        # Run headless recording if animation is enabled
+        if capture_enabled:
+            frames_recorded = run_headless_recording(style_config, style["name"])
+
+            if not frames_recorded:
+                print(f"\nNo animation frames captured for style '{style['name']}'")
+
+        # Generate SVG outputs
+        create_svg_from_scene(style["name"])
+
+    print("\n" + "=" * 60)
+    print("ALL STYLES COMPLETE!")
+    print("=" * 60)
+    print("\nOutput directories:")
+    for style in styles:
+        print(f"  - build/{style['name']}/")
+    print("=" * 60 + "\n")
 
 
 if __name__ == "__main__":
