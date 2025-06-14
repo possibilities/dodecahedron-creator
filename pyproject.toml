@@ -10,4 +10,5 @@ dependencies = [
     "easing-functions>=1.0.4",
     "cairosvg>=2.8.2",
     "pillow>=11.2.1",
+    "requests>=2.32.4",
 ]
