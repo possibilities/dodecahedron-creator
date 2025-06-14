@@ -2,7 +2,8 @@
 
 # Dodecahedron Creator
 
-<img src="./build/dodecahedron.svg" alt="Dodecahedron" />
+<img src="./build/dodecahedron.svg" alt="Dodecahedron" width="100" height="100" />
+<img src="./build/animation.gif" alt="Dodecahedron Animation" width="100" height="100" />
 
 </div>
 
