@@ -75,6 +75,17 @@ def read_config_file():
                 "continuous": config.get("continuous", False),
                 "capture_fps": config.get("capture_fps", 0),
                 "raster_height": config.get("raster_height", 100),
+                "svg": config.get(
+                    "svg",
+                    {
+                        "stroke_width": DEFAULT_SVG_STROKE_WIDTH,
+                        "background": DEFAULT_BACKGROUND_COLOR,
+                        "fill": DEFAULT_SVG_FILL,
+                        "stroke": DEFAULT_SVG_STROKE,
+                        "stroke_linecap": "round",
+                        "stroke_linejoin": "round",
+                    },
+                ),
             }
     except Exception:
         return None
@@ -186,12 +197,17 @@ def save_configuration(plotter, mesh, config, animation_state):
             "size": list(plotter.window.GetSize()),
             "background_color": config["viewport"]["background_color"],
         },
-        "svg": {
-            "stroke_width": 12,
-            "background": "white",
-            "fill": "black",
-            "stroke": "white",
-        },
+        "svg": config.get(
+            "svg",
+            {
+                "stroke_width": DEFAULT_SVG_STROKE_WIDTH,
+                "background": DEFAULT_BACKGROUND_COLOR,
+                "fill": DEFAULT_SVG_FILL,
+                "stroke": DEFAULT_SVG_STROKE,
+                "stroke_linecap": "round",
+                "stroke_linejoin": "round",
+            },
+        ),
     }
 
     os.makedirs("build", exist_ok=True)
@@ -502,10 +518,12 @@ def capture_frame_as_json(plotter, mesh, frame_number, config):
         "svg": config.get(
             "svg",
             {
-                "stroke_width": 12,
-                "background": "white",
-                "fill": "black",
-                "stroke": "white",
+                "stroke_width": DEFAULT_SVG_STROKE_WIDTH,
+                "background": DEFAULT_BACKGROUND_COLOR,
+                "fill": DEFAULT_SVG_FILL,
+                "stroke": DEFAULT_SVG_STROKE,
+                "stroke_linecap": "round",
+                "stroke_linejoin": "round",
             },
         ),
     }
@@ -1045,8 +1063,8 @@ def generate_svg_content(config, projected_edges, bounds, svg_path):
                 fill="none",
                 stroke=svg_config["stroke"],
                 stroke_width=svg_config["stroke_width"],
-                stroke_linecap="round",
-                stroke_linejoin="round",
+                stroke_linecap=svg_config.get("stroke_linecap", "round"),
+                stroke_linejoin=svg_config.get("stroke_linejoin", "round"),
             )
         )
 
