@@ -8,11 +8,13 @@ import argparse
 import yaml
 import time
 import easing_functions as easing
+import cairosvg
 
 MODEL_PATH = "resources/dodecahedron.obj"
 SVG_PATH = "build/dodecahedron.svg"
 SCENE_CONFIG_PATH = "build/scene.json"
 CONFIG_FILE_PATH = "config.yaml"
+GIF_PATH = "build/animation.gif"
 
 
 def read_config_file():
@@ -28,6 +30,7 @@ def read_config_file():
                 "easing": config.get("easing", "quadInOut"),
                 "continuous": config.get("continuous", False),
                 "capture_fps": config.get("capture_fps", 0),
+                "raster_height": config.get("raster_height", 100),
             }
     except Exception:
         return None
@@ -693,10 +696,75 @@ def convex_hull(points):
     return lower[:-1] + upper[:-1]
 
 
+def get_global_bounding_box(config):
+    """Calculate a bounding box that encompasses all possible rotations."""
+    plotter, mesh, camera = setup_offscreen_renderer(config)
+
+    # Get all vertices of the mesh
+    all_mesh_vertices = mesh.vertices
+
+    # Project all vertices to 2D
+    renderer = plotter.renderer
+    all_2d_points = []
+
+    for vertex in all_mesh_vertices:
+        renderer.SetWorldPoint(*vertex, 1.0)
+        renderer.WorldToDisplay()
+        screen_point = renderer.GetDisplayPoint()[:2]
+        all_2d_points.append(screen_point)
+
+    plotter.close()
+
+    if all_2d_points:
+        viewport_size = tuple(config["viewport"]["size"])
+        # Convert to SVG coordinates
+        svg_points = [(p[0], viewport_size[1] - p[1]) for p in all_2d_points]
+
+        min_x = min(p[0] for p in svg_points)
+        max_x = max(p[0] for p in svg_points)
+        min_y = min(p[1] for p in svg_points)
+        max_y = max(p[1] for p in svg_points)
+
+        # Calculate center point
+        center_x = (min_x + max_x) / 2
+        center_y = (min_y + max_y) / 2
+
+        # Calculate radius that encompasses all points
+        radius = max(
+            max(abs(p[0] - center_x) for p in svg_points),
+            max(abs(p[1] - center_y) for p in svg_points),
+        )
+
+        # Add padding
+        padding = config["svg"]["stroke_width"] * 2
+        radius += padding
+
+        # Create square bounding box centered at the object
+        return {
+            "min_x": center_x - radius,
+            "max_x": center_x + radius,
+            "min_y": center_y - radius,
+            "max_y": center_y + radius,
+            "size": radius * 2,
+        }
+
+    return None
+
+
+# Global variable to store consistent bounding box
+_global_bbox = None
+
+
 def create_svg_from_json(json_path, svg_path):
     """Generate SVG from a JSON scene configuration."""
+    global _global_bbox
+
     with open(json_path, "r") as f:
         config = json.load(f)
+
+    # Calculate global bounding box once
+    if _global_bbox is None:
+        _global_bbox = get_global_bounding_box(config)
 
     plotter, mesh, camera = setup_offscreen_renderer(config)
 
@@ -710,11 +778,63 @@ def create_svg_from_json(json_path, svg_path):
     viewport_size = tuple(config["viewport"]["size"])
     svg_config = config["svg"]
 
-    # Use fixed viewport dimensions for stable output
-    svg_width = viewport_size[0]
-    svg_height = viewport_size[1]
+    # Use the global bounding box
+    if _global_bbox:
+        min_x = _global_bbox["min_x"]
+        max_x = _global_bbox["max_x"]
+        min_y = _global_bbox["min_y"]
+        max_y = _global_bbox["max_y"]
+        svg_width = svg_height = _global_bbox["size"]
+    else:
+        # Fallback: calculate from current frame
+        all_vertices = set()
+        for edge in projected_edges:
+            start = (edge["start_2d"][0], viewport_size[1] - edge["start_2d"][1])
+            end = (edge["end_2d"][0], viewport_size[1] - edge["end_2d"][1])
+            all_vertices.add(start)
+            all_vertices.add(end)
 
-    # Collect all vertices for convex hull calculation
+        vertices_list = list(all_vertices)
+
+        if vertices_list:
+            min_x = min(v[0] for v in vertices_list)
+            max_x = max(v[0] for v in vertices_list)
+            min_y = min(v[1] for v in vertices_list)
+            max_y = max(v[1] for v in vertices_list)
+
+            # Add padding for stroke width
+            padding = svg_config["stroke_width"]
+            min_x -= padding
+            max_x += padding
+            min_y -= padding
+            max_y += padding
+
+            # Calculate dimensions
+            svg_width = max_x - min_x
+            svg_height = max_y - min_y
+
+            # Make it square by using the larger dimension
+            max_dim = max(svg_width, svg_height)
+
+            # Center the content in the square
+            if svg_width < max_dim:
+                x_offset = (max_dim - svg_width) / 2
+                min_x -= x_offset
+                max_x += x_offset
+                svg_width = max_dim
+
+            if svg_height < max_dim:
+                y_offset = (max_dim - svg_height) / 2
+                min_y -= y_offset
+                max_y += y_offset
+                svg_height = max_dim
+        else:
+            svg_width = viewport_size[0]
+            svg_height = viewport_size[1]
+            min_x = 0
+            min_y = 0
+
+    # Collect visible vertices for drawing
     all_vertices = set()
     for edge in projected_edges:
         start = (edge["start_2d"][0], viewport_size[1] - edge["start_2d"][1])
@@ -733,8 +853,9 @@ def create_svg_from_json(json_path, svg_path):
     )
 
     hull_vertices = convex_hull(vertices_list)
-    # Use absolute coordinates without translation for stable canvas
-    dwg.add(dwg.polygon(points=hull_vertices, fill=svg_config["fill"], stroke="none"))
+    # Translate hull vertices to new coordinate system
+    translated_hull = [(x - min_x, y - min_y) for x, y in hull_vertices]
+    dwg.add(dwg.polygon(points=translated_hull, fill=svg_config["fill"], stroke="none"))
 
     vertex_map = defaultdict(list)
     edge_used = [False] * len(projected_edges)
@@ -788,11 +909,12 @@ def create_svg_from_json(json_path, svg_path):
 
     for path in paths:
         flipped_path = [(p[0], viewport_size[1] - p[1]) for p in path]
-        # Use absolute coordinates without translation for stable canvas
+        # Translate to new coordinate system
+        translated_path = [(x - min_x, y - min_y) for x, y in flipped_path]
 
         dwg.add(
             dwg.polyline(
-                points=flipped_path,
+                points=translated_path,
                 fill="none",
                 stroke=svg_config["stroke"],
                 stroke_width=svg_config["stroke_width"],
@@ -805,9 +927,103 @@ def create_svg_from_json(json_path, svg_path):
     return svg_path
 
 
+def rasterize_svg_frames(svg_paths, target_height):
+    """Convert SVG files to PNG with specified height, maintaining aspect ratio."""
+    for svg_path in svg_paths:
+        # Read SVG to get dimensions
+        with open(svg_path, "r") as f:
+            svg_content = f.read()
+
+        # Parse SVG to get width and height (including floating point numbers)
+        import re
+
+        width_match = re.search(r'width="([\d.]+)"', svg_content)
+        height_match = re.search(r'height="([\d.]+)"', svg_content)
+
+        if width_match and height_match:
+            svg_width = float(width_match.group(1))
+            svg_height = float(height_match.group(1))
+
+            # Calculate proportional width
+            scale_factor = target_height / svg_height
+            target_width = int(svg_width * scale_factor)
+
+            # Convert to PNG
+            png_path = svg_path.replace(".svg", ".png")
+            cairosvg.svg2png(
+                url=svg_path,
+                write_to=png_path,
+                output_width=target_width,
+                output_height=target_height,
+            )
+            print(f"  Rasterized to {png_path} ({target_width}x{target_height}px)")
+        else:
+            # Fallback: let cairosvg handle it with just the height
+            png_path = svg_path.replace(".svg", ".png")
+            try:
+                cairosvg.svg2png(
+                    url=svg_path,
+                    write_to=png_path,
+                    output_height=target_height,
+                )
+                print(f"  Rasterized to {png_path} (height: {target_height}px)")
+            except Exception as e:
+                print(f"  Error rasterizing {svg_path}: {e}")
+
+
+def create_animated_gif(png_paths, output_path, capture_fps, animation_config):
+    """Create animated GIF from PNG files with correct timing."""
+    from PIL import Image
+
+    images = []
+    for png_path in png_paths:
+        if os.path.exists(png_path):
+            img = Image.open(png_path)
+            images.append(img)
+
+    if images:
+        # Calculate total animation time
+        # The viewer runs at 50 fps (20ms per frame)
+        viewer_fps = 50
+        degrees_per_viewer_frame = animation_config.get("speed", 1.0)
+        total_degrees = animation_config.get("rotations", 1) * 360
+
+        # Calculate how many viewer frames the animation takes
+        viewer_frames_for_animation = total_degrees / degrees_per_viewer_frame
+        total_animation_time_ms = (viewer_frames_for_animation / viewer_fps) * 1000
+
+        # Calculate duration per captured frame
+        duration_per_frame = int(total_animation_time_ms / len(images))
+
+        # Ensure minimum duration for compatibility
+        duration_per_frame = max(duration_per_frame, 20)  # 20ms minimum
+
+        images[0].save(
+            output_path,
+            save_all=True,
+            append_images=images[1:],
+            duration=duration_per_frame,
+            loop=0,  # infinite loop
+        )
+
+        actual_fps = 1000 / duration_per_frame
+        print(f"Created animated GIF: {output_path}")
+        print(f"  Frames: {len(images)}")
+        print(f"  Duration per frame: {duration_per_frame}ms")
+        print(f"  Effective playback rate: {actual_fps:.1f} fps")
+        print(f"  Total animation time: {total_animation_time_ms / 1000:.2f}s")
+        return True
+    return False
+
+
 def create_svg_from_scene():
     """Main function to generate SVG from saved scene configuration."""
+    global _global_bbox
+
     print("Generating SVG...")
+
+    # Reset global bounding box for this session
+    _global_bbox = None
 
     # Generate main SVG from scene.json
     svg_path = create_svg_from_json(SCENE_CONFIG_PATH, SVG_PATH)
@@ -820,11 +1036,31 @@ def create_svg_from_scene():
 
     if frame_json_files:
         print(f"\nConverting {len(frame_json_files)} frame JSON files to SVG...")
+        svg_paths = []
         for json_path in frame_json_files:
             svg_path = json_path.replace(".json", ".svg")
             create_svg_from_json(json_path, svg_path)
             print(f"  Created {svg_path}")
+            svg_paths.append(svg_path)
         print("Frame conversion complete!")
+
+        # Rasterize SVG frames to PNG
+        config = read_config_file()
+        if config and config.get("raster_height", 0) > 0:
+            print(
+                f"\nRasterizing {len(svg_paths)} SVG frames to PNG (height: {config['raster_height']}px)..."
+            )
+            rasterize_svg_frames(svg_paths, config["raster_height"])
+            print("Rasterization complete!")
+
+            # Create animated GIF from PNGs
+            png_paths = [p.replace(".svg", ".png") for p in svg_paths]
+            if (
+                all(os.path.exists(p) for p in png_paths)
+                and config.get("capture_fps", 0) > 0
+            ):
+                print(f"\nCreating animated GIF from {len(png_paths)} frames...")
+                create_animated_gif(png_paths, GIF_PATH, config["capture_fps"], config)
 
 
 def main():

@@ -6,17 +6,17 @@ elevation: 0
 
 # Maximum rotation speed in degrees per frame (0-10)
 # The rotation will ease in and out, reaching this speed at the midpoint
-speed: 5.7
+speed: 3.5
 
 # Pause duration in seconds after each 360 degree rotation
-pause: 0.1
+pause: 0.0
 
 # Continuous mode - when true, rotation continues smoothly without pauses
 # The easing function creates natural speed variations at rotation boundaries
-continuous: false
+continuous: true
 
 # Number of full rotations before pausing (1 = 360°, 2 = 720°, etc.)
-rotations: 2
+rotations: 1
 
 # Easing function for rotation animation
 # Available options: linear, quadIn, quadOut, quadInOut, cubicIn, cubicOut, 
@@ -25,10 +25,14 @@ rotations: 2
 # circInOut, backIn, backOut, backInOut, elasticIn, elasticOut, elasticInOut,
 # bounceIn, bounceOut, bounceInOut
 # See: https://github.com/semitable/easing-functions for visualizations
-easing: quadInOut
+easing: sineInOut
 
 # Frame rate for capturing animation frames as JSON files
 # These JSON files can be converted to SVG after animation completes
 # Set to 0 to disable frame capture
 # Common values: 24, 30, 60 fps
 capture_fps: 30
+
+# Height in pixels for rasterized PNG images
+# Width will be calculated proportionally based on viewport aspect ratio
+raster_height: 100

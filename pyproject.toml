@@ -8,4 +8,6 @@ dependencies = [
     "vedo>=2025.5.4",
     "pyyaml>=6.0.2",
     "easing-functions>=1.0.4",
+    "cairosvg>=2.8.2",
+    "pillow>=11.2.1",
 ]
