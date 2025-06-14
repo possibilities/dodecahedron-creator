@@ -1,9 +1,9 @@
 {
   "camera": {
     "position": [
-      -2.6891442155266585,
-      3.694264431545779,
-      4.9176033468401705
+      2.711506751209514,
+      0.03306062858936878,
+      6.140728548952455
     ],
     "focal_point": [
       0.0,
@@ -11,14 +11,14 @@
       0.0
     ],
     "view_up": [
-      0.08813841156636727,
-      0.8189644095934514,
-      -0.5670351984011289
+      -0.001615319241428258,
+      0.9999877885097905,
+      -0.004670500513530702
     ],
     "view_angle": 30.0,
     "clipping_range": [
-      3.245278987002483,
-      11.093924138846223
+      3.9362987122323294,
+      10.224072675679812
     ]
   },
   "mesh": {
@@ -53,12 +53,12 @@
         1.0
       ]
     ],
-    "color": "#404040",
+    "color": "black",
     "linewidth": 4,
     "edge_color": [
-      0.9607843137254902,
-      0.9607843137254902,
-      0.9607843137254902
+      1,
+      1,
+      1
     ]
   },
   "viewport": {
@@ -66,15 +66,16 @@
       2552,
       1432
     ],
-    "background_color": "#F5F5F5"
+    "background_color": "white"
   },
   "svg": {
-    "name": "mono-gray",
-    "stroke_width": 10,
-    "background": "#F5F5F5",
-    "fill": "#404040",
-    "stroke": "#F5F5F5",
+    "name": "black-on-white",
+    "background": "white",
+    "foreground": "black",
+    "stroke_width": 12,
     "stroke_linecap": "round",
-    "stroke_linejoin": "round"
+    "stroke_linejoin": "round",
+    "fill": "black",
+    "stroke": "white"
   }
 }

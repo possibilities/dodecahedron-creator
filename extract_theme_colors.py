@@ -180,11 +180,7 @@ def generate_config_yaml_snippet(colors: Dict[str, Any]) -> str:
     if colors["light"]:
         snippet_lines.append(f'  - name: "{colors["name"]}-light"')
         snippet_lines.append(f'    background: "{colors["light"]["background"]}"')
-        snippet_lines.append(f'    fill: "{colors["light"]["foreground"]}"')
-        snippet_lines.append(f'    stroke: "{colors["light"]["background"]}"')
-        snippet_lines.append("    stroke_width: 12")
-        snippet_lines.append('    stroke_linecap: "round"')
-        snippet_lines.append('    stroke_linejoin: "round"')
+        snippet_lines.append(f'    foreground: "{colors["light"]["foreground"]}"')
 
     # Dark mode style
     if colors["dark"]:
@@ -192,11 +188,7 @@ def generate_config_yaml_snippet(colors: Dict[str, Any]) -> str:
             snippet_lines.append("")
         snippet_lines.append(f'  - name: "{colors["name"]}-dark"')
         snippet_lines.append(f'    background: "{colors["dark"]["background"]}"')
-        snippet_lines.append(f'    fill: "{colors["dark"]["foreground"]}"')
-        snippet_lines.append(f'    stroke: "{colors["dark"]["background"]}"')
-        snippet_lines.append("    stroke_width: 12")
-        snippet_lines.append('    stroke_linecap: "round"')
-        snippet_lines.append('    stroke_linejoin: "round"')
+        snippet_lines.append(f'    foreground: "{colors["dark"]["foreground"]}"')
 
     return "\n".join(snippet_lines)
 
@@ -242,9 +234,14 @@ def main():
                     all_configs.append(config_snippet)
 
         print("\n" + "=" * 80)
-        print("\nCONFIG.YAML STYLES SECTION:")
+        print("\nCONFIG.YAML STRUCTURE:")
         print("=" * 80)
-        print("\nstyles:")
+        print("\n# Common stroke settings for all styles")
+        print("stroke_width: 12")
+        print('stroke_linecap: "round"')
+        print('stroke_linejoin: "round"')
+        print("\n# Style variations for output")
+        print("styles:")
         print("\n".join(all_configs))
         print("\n" + "=" * 80)
 
