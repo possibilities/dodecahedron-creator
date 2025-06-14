@@ -53,12 +53,12 @@
         1.0
       ]
     ],
-    "color": "#232323",
+    "color": "#4f3d57",
     "linewidth": 4,
     "edge_color": [
-      1.0,
-      1.0,
-      1.0
+      0.9725490196078431,
+      0.9568627450980393,
+      0.9764705882352941
     ]
   },
   "viewport": {
@@ -66,16 +66,16 @@
       2552,
       1432
     ],
-    "background_color": "#ffffff"
+    "background_color": "#f8f4f9"
   },
   "svg": {
-    "name": "mono-light",
-    "background": "#ffffff",
-    "foreground": "#232323",
+    "name": "cosmic-night-light",
+    "background": "#f8f4f9",
+    "foreground": "#4f3d57",
     "stroke_width": 12,
     "stroke_linecap": "round",
     "stroke_linejoin": "round",
-    "fill": "#232323",
-    "stroke": "#ffffff"
+    "fill": "#4f3d57",
+    "stroke": "#f8f4f9"
   }
 }

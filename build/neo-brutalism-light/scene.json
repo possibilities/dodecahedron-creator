@@ -53,7 +53,7 @@
         1.0
       ]
     ],
-    "color": "#232323",
+    "color": "#000000",
     "linewidth": 4,
     "edge_color": [
       1.0,
@@ -69,13 +69,13 @@
     "background_color": "#ffffff"
   },
   "svg": {
-    "name": "mono-light",
+    "name": "neo-brutalism-light",
     "background": "#ffffff",
-    "foreground": "#232323",
+    "foreground": "#000000",
     "stroke_width": 12,
     "stroke_linecap": "round",
     "stroke_linejoin": "round",
-    "fill": "#232323",
+    "fill": "#000000",
     "stroke": "#ffffff"
   }
 }
