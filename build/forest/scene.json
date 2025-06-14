@@ -53,12 +53,12 @@
         1.0
       ]
     ],
-    "color": "black",
+    "color": "#2D4A2B",
     "linewidth": 4,
     "edge_color": [
-      1,
-      1,
-      1
+      0.9607843137254902,
+      0.9607843137254902,
+      0.8627450980392157
     ]
   },
   "viewport": {
@@ -66,14 +66,14 @@
       2552,
       1432
     ],
-    "background_color": "white"
+    "background_color": "#F5F5DC"
   },
   "svg": {
-    "name": "default",
-    "stroke_width": 12,
-    "background": "white",
-    "fill": "black",
-    "stroke": "white",
+    "name": "forest",
+    "stroke_width": 10,
+    "background": "#F5F5DC",
+    "fill": "#2D4A2B",
+    "stroke": "#F5F5DC",
     "stroke_linecap": "round",
     "stroke_linejoin": "round"
   }
