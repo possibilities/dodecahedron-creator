@@ -202,6 +202,7 @@ def main():
         print("=" * 80)
 
         all_configs = []
+        themes_json = {}
 
         for theme in themes:
             if theme.get("type") == "registry:style":
@@ -210,7 +211,13 @@ def main():
                 print(f"\nTheme: {colors['title']} ({colors['name']})")
                 print("-" * 40)
 
+                # Add light mode to JSON
                 if colors["light"]:
+                    theme_name = f"{colors['name']}-light"
+                    themes_json[theme_name] = {
+                        "foreground": colors["light"]["foreground"],
+                        "background": colors["light"]["background"],
+                    }
                     print("Light Mode:")
                     print(
                         f"  Background: {colors['light']['background']} (from: {colors['light']['background_raw']})"
@@ -219,7 +226,13 @@ def main():
                         f"  Foreground: {colors['light']['foreground']} (from: {colors['light']['foreground_raw']})"
                     )
 
+                # Add dark mode to JSON
                 if colors["dark"]:
+                    theme_name = f"{colors['name']}-dark"
+                    themes_json[theme_name] = {
+                        "foreground": colors["dark"]["foreground"],
+                        "background": colors["dark"]["background"],
+                    }
                     print("Dark Mode:")
                     print(
                         f"  Background: {colors['dark']['background']} (from: {colors['dark']['background_raw']})"
@@ -232,6 +245,11 @@ def main():
                 config_snippet = generate_config_yaml_snippet(colors)
                 if config_snippet:
                     all_configs.append(config_snippet)
+
+        # Save themes to JSON file
+        with open("themes.json", "w") as f:
+            json.dump(themes_json, f, indent=2)
+        print(f"\nSaved {len(themes_json)} theme variations to themes.json")
 
         print("\n" + "=" * 80)
         print("\nCONFIG.YAML STRUCTURE:")
