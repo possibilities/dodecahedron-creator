@@ -7,6 +7,7 @@ import os
 import argparse
 import yaml
 import time
+import easing_functions as easing
 
 MODEL_PATH = "resources/dodecahedron.obj"
 SVG_PATH = "build/dodecahedron.svg"
@@ -23,6 +24,8 @@ def read_config_file():
                 "elevation": config.get("elevation", 0),
                 "speed": config.get("speed", 1.0),
                 "pause": config.get("pause", 1.0),
+                "rotations": config.get("rotations", 1),
+                "easing": config.get("easing", "quadInOut"),
             }
     except Exception:
         return None
@@ -153,20 +156,54 @@ def save_configuration(plotter, mesh, config, animation_state):
     return True
 
 
-def ease_in_out_cubic(t):
-    """Cubic ease-in-out function for smooth acceleration/deceleration.
+def get_easing_function(easing_type):
+    """Get the appropriate easing function based on the type string.
 
     Args:
-        t: Progress from 0.0 to 1.0
+        easing_type: String name of the easing function
 
     Returns:
-        Eased value from 0.0 to 1.0
+        The easing function, defaults to quadInOut if type is invalid
     """
-    if t < 0.5:
-        return 4 * t * t * t
-    else:
-        p = 2 * t - 2
-        return 1 + p * p * p / 2
+    easing_map = {
+        "linear": lambda t: t,
+        "quadIn": easing.QuadEaseIn(),
+        "quadOut": easing.QuadEaseOut(),
+        "quadInOut": easing.QuadEaseInOut(),
+        "cubicIn": easing.CubicEaseIn(),
+        "cubicOut": easing.CubicEaseOut(),
+        "cubicInOut": easing.CubicEaseInOut(),
+        "quartIn": easing.QuarticEaseIn(),
+        "quartOut": easing.QuarticEaseOut(),
+        "quartInOut": easing.QuarticEaseInOut(),
+        "quintIn": easing.QuinticEaseIn(),
+        "quintOut": easing.QuinticEaseOut(),
+        "quintInOut": easing.QuinticEaseInOut(),
+        "sineIn": easing.SineEaseIn(),
+        "sineOut": easing.SineEaseOut(),
+        "sineInOut": easing.SineEaseInOut(),
+        "expoIn": easing.ExponentialEaseIn(),
+        "expoOut": easing.ExponentialEaseOut(),
+        "expoInOut": easing.ExponentialEaseInOut(),
+        "circIn": easing.CircularEaseIn(),
+        "circOut": easing.CircularEaseOut(),
+        "circInOut": easing.CircularEaseInOut(),
+        "backIn": easing.BackEaseIn(),
+        "backOut": easing.BackEaseOut(),
+        "backInOut": easing.BackEaseInOut(),
+        "elasticIn": easing.ElasticEaseIn(),
+        "elasticOut": easing.ElasticEaseOut(),
+        "elasticInOut": easing.ElasticEaseInOut(),
+        "bounceIn": easing.BounceEaseIn(),
+        "bounceOut": easing.BounceEaseOut(),
+        "bounceInOut": easing.BounceEaseInOut(),
+    }
+
+    func = easing_map.get(easing_type)
+    if func is None:
+        print(f"Warning: Unknown easing type '{easing_type}', using quadInOut")
+        return easing.QuadEaseInOut()
+    return func
 
 
 def configure_scene_in_viewer(use_fresh=False):
@@ -190,12 +227,20 @@ def configure_scene_in_viewer(use_fresh=False):
             "pause_start_time": None,
             "initial_transform": None,
             "rotation_progress": 0.0,
+            "rotations": initial_config["rotations"],
+            "current_rotation": 0,
+            "easing_type": initial_config["easing"],
+            "easing_func": get_easing_function(initial_config["easing"]),
         }
         print(f"\nLoaded config from {CONFIG_FILE_PATH}:")
         print(f"  Azimuth: {initial_config['azimuth']}°")
         print(f"  Elevation: {initial_config['elevation']}°")
         print(f"  Speed: {initial_config['speed']}°/frame (max speed)")
         print(f"  Pause: {initial_config['pause']}s after each rotation")
+        print(
+            f"  Rotations: {initial_config['rotations']} ({initial_config['rotations'] * 360}° total)"
+        )
+        print(f"  Easing: {initial_config['easing']}")
     else:
         animation_state = {
             "rotation_enabled": False,
@@ -208,6 +253,10 @@ def configure_scene_in_viewer(use_fresh=False):
             "pause_start_time": None,
             "initial_transform": None,
             "rotation_progress": 0.0,
+            "rotations": 1,
+            "current_rotation": 0,
+            "easing_type": "quadInOut",
+            "easing_func": get_easing_function("quadInOut"),
         }
 
     def handle_key_press(evt):
@@ -229,13 +278,12 @@ def configure_scene_in_viewer(use_fresh=False):
             animation_state["rotation_enabled"] = not animation_state[
                 "rotation_enabled"
             ]
-            # Reset rotation tracking when toggling animation
             animation_state["total_rotation"] = 0.0
             animation_state["is_paused"] = False
             animation_state["pause_start_time"] = None
             animation_state["rotation_progress"] = 0.0
+            animation_state["current_rotation"] = 0
 
-            # Store initial transform when starting animation
             if animation_state["rotation_enabled"]:
                 animation_state["initial_transform"] = mesh.transform.clone()
 
@@ -249,43 +297,41 @@ def configure_scene_in_viewer(use_fresh=False):
             animation_state["rotation_elevation"] = config_from_file["elevation"]
             animation_state["rotation_speed"] = config_from_file["speed"]
             animation_state["pause_duration"] = config_from_file["pause"]
+            animation_state["rotations"] = config_from_file["rotations"]
+
+            if config_from_file["easing"] != animation_state["easing_type"]:
+                animation_state["easing_type"] = config_from_file["easing"]
+                animation_state["easing_func"] = get_easing_function(
+                    config_from_file["easing"]
+                )
 
         if animation_state["rotation_enabled"]:
-            # Check if we're in a pause
             if animation_state["is_paused"]:
                 current_time = time.time()
                 elapsed_pause = current_time - animation_state["pause_start_time"]
                 if elapsed_pause >= animation_state["pause_duration"]:
-                    # Pause is over, resume rotation
                     animation_state["is_paused"] = False
                     animation_state["pause_start_time"] = None
                 else:
-                    # Still paused, don't rotate
                     return
 
-            # Calculate rotation axis first
             azimuth_rad = np.radians(animation_state["rotation_azimuth"])
             elevation_rad = np.radians(animation_state["rotation_elevation"])
 
-            # Get current camera vectors
             camera = plotter.camera
             camera_pos = np.array(camera.GetPosition())
             focal_point = np.array(camera.GetFocalPoint())
             camera_up = np.array(camera.GetViewUp())
 
-            # Calculate camera coordinate system
             view_direction = focal_point - camera_pos
             view_direction = view_direction / np.linalg.norm(view_direction)
 
-            # Camera right vector (cross product of view direction and up)
             camera_right = np.cross(view_direction, camera_up)
             camera_right = camera_right / np.linalg.norm(camera_right)
 
-            # Recalculate camera up to ensure orthogonality
             camera_up = np.cross(camera_right, view_direction)
             camera_up = camera_up / np.linalg.norm(camera_up)
 
-            # Calculate rotation axis in camera space
             rotation_axis_camera = np.array(
                 [
                     -np.sin(azimuth_rad),
@@ -294,7 +340,6 @@ def configure_scene_in_viewer(use_fresh=False):
                 ]
             )
 
-            # Transform rotation axis to world space using camera coordinate system
             rotation_axis = (
                 rotation_axis_camera[0] * camera_right
                 + rotation_axis_camera[1] * camera_up
@@ -303,42 +348,51 @@ def configure_scene_in_viewer(use_fresh=False):
 
             rotation_axis = rotation_axis / np.linalg.norm(rotation_axis)
 
-            # Calculate rotation amount using easing
-            # Progress goes from 0 to 1 over 360 degrees
             max_speed = animation_state["rotation_speed"]
 
-            # Calculate how much progress we should make this frame
-            # This is based on the max speed setting
             progress_increment = max_speed / 360.0
 
-            # Update progress
             new_progress = animation_state["rotation_progress"] + progress_increment
 
             if new_progress >= 1.0:
-                # Complete the rotation to exactly 360 degrees
                 new_progress = 1.0
 
-            # Calculate eased positions for current and previous progress
-            eased_current = ease_in_out_cubic(new_progress)
-            eased_previous = ease_in_out_cubic(animation_state["rotation_progress"])
+            total_rotations = animation_state["rotations"]
+            current_rotation = animation_state["current_rotation"]
+            overall_progress = (current_rotation + new_progress) / total_rotations
 
-            # The actual rotation is the difference in eased positions scaled by 360
-            rotation_amount = (eased_current - eased_previous) * 360.0
+            eased_overall_current = animation_state["easing_func"](overall_progress)
 
-            # Apply rotation
+            prev_overall_progress = (
+                current_rotation + animation_state["rotation_progress"]
+            ) / total_rotations
+            eased_overall_previous = animation_state["easing_func"](
+                prev_overall_progress
+            )
+
+            rotation_amount = (eased_overall_current - eased_overall_previous) * (
+                total_rotations * 360.0
+            )
+
             mesh.rotate(rotation_amount, axis=rotation_axis, point=mesh.pos())
 
-            # Update state
             animation_state["rotation_progress"] = new_progress
-            animation_state["total_rotation"] = eased_current * 360.0
+            animation_state["total_rotation"] = overall_progress * (
+                total_rotations * 360.0
+            )
 
-            # Check if we've completed a full rotation
             if new_progress >= 1.0:
-                # Reset for next cycle
-                animation_state["rotation_progress"] = 0.0
-                animation_state["total_rotation"] = 0.0
-                animation_state["is_paused"] = True
-                animation_state["pause_start_time"] = time.time()
+                animation_state["current_rotation"] += 1
+
+                if animation_state["current_rotation"] >= animation_state["rotations"]:
+                    animation_state["rotation_progress"] = 0.0
+                    animation_state["total_rotation"] = 0.0
+                    animation_state["current_rotation"] = 0
+                    animation_state["is_paused"] = True
+                    animation_state["pause_start_time"] = time.time()
+                else:
+                    animation_state["rotation_progress"] = 0.0
+                    animation_state["total_rotation"] = 0.0
 
             plotter.render()
 
@@ -360,7 +414,9 @@ def configure_scene_in_viewer(use_fresh=False):
     print("  azimuth      : Horizontal angle (0-360°)")
     print("  elevation    : Vertical angle (-90° to +90°)")
     print("  speed        : Rotation speed (0-10°/frame)")
-    print("  pause        : Pause duration after each 360° rotation (seconds)")
+    print("  pause        : Pause duration after rotation sequence (seconds)")
+    print("  rotations    : Number of full rotations (1=360°, 2=720°, etc.)")
+    print("  easing       : Animation easing function (see config.yaml for options)")
     print("\nUtility:")
     print("  q            : Quit and save scene")
     print("  r            : Reset camera")

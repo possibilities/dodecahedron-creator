@@ -1,5 +1,5 @@
 # Azimuth angle in degrees (0-360)
-azimuth: 0
+azimuth: 330
 
 # Elevation angle in degrees (-90 to 90)
 elevation: 0
@@ -9,4 +9,16 @@ elevation: 0
 speed: 5.0
 
 # Pause duration in seconds after each 360 degree rotation
-pause: 1.0
+pause: 0.0
+
+# Number of full rotations before pausing (1 = 360°, 2 = 720°, etc.)
+rotations: 1
+
+# Easing function for rotation animation
+# Available options: linear, quadIn, quadOut, quadInOut, cubicIn, cubicOut, 
+# cubicInOut, quartIn, quartOut, quartInOut, quintIn, quintOut, quintInOut,
+# sineIn, sineOut, sineInOut, expoIn, expoOut, expoInOut, circIn, circOut,
+# circInOut, backIn, backOut, backInOut, elasticIn, elasticOut, elasticInOut,
+# bounceIn, bounceOut, bounceInOut
+# See: https://github.com/semitable/easing-functions for visualizations
+easing: quadInOut

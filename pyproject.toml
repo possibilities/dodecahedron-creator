@@ -7,4 +7,5 @@ dependencies = [
     "svgwrite>=1.4.3",
     "vedo>=2025.5.4",
     "pyyaml>=6.0.2",
+    "easing-functions>=1.0.4",
 ]
