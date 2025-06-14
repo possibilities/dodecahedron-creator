@@ -47,6 +47,19 @@ BBOX_PADDING_MULTIPLIER = 2
 IDENTITY_MATRIX_4X4 = [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
 
 
+class SvgGenerationContext:
+    def __init__(self):
+        self.global_bbox = None
+
+    def reset(self):
+        self.global_bbox = None
+
+    def get_or_calculate_bbox(self, config):
+        if self.global_bbox is None:
+            self.global_bbox = get_global_bounding_box(config)
+        return self.global_bbox
+
+
 def read_config_file():
     try:
         with open(CONFIG_FILE_PATH, "r") as f:
@@ -784,16 +797,11 @@ def get_global_bounding_box(config):
     return None
 
 
-_global_bbox = None
-
-
-def setup_svg_renderer(json_path):
+def setup_svg_renderer(json_path, context):
     with open(json_path, "r") as f:
         config = json.load(f)
 
-    global _global_bbox
-    if _global_bbox is None:
-        _global_bbox = get_global_bounding_box(config)
+    context.get_or_calculate_bbox(config)
 
     plotter, mesh, camera = setup_offscreen_renderer(config)
     visible_edges, vertices = calculate_visible_geometry(mesh, camera)
@@ -803,19 +811,18 @@ def setup_svg_renderer(json_path):
     return config, projected_edges
 
 
-def calculate_svg_bounds(config, projected_edges):
-    global _global_bbox
+def calculate_svg_bounds(config, projected_edges, context):
     viewport_size = tuple(config["viewport"]["size"])
     svg_config = config["svg"]
 
-    if _global_bbox:
+    if context.global_bbox:
         return {
-            "min_x": _global_bbox["min_x"],
-            "max_x": _global_bbox["max_x"],
-            "min_y": _global_bbox["min_y"],
-            "max_y": _global_bbox["max_y"],
-            "svg_width": _global_bbox["size"],
-            "svg_height": _global_bbox["size"],
+            "min_x": context.global_bbox["min_x"],
+            "max_x": context.global_bbox["max_x"],
+            "min_y": context.global_bbox["min_y"],
+            "max_y": context.global_bbox["max_y"],
+            "svg_width": context.global_bbox["size"],
+            "svg_height": context.global_bbox["size"],
         }
     else:
         all_vertices = set()
@@ -971,9 +978,12 @@ def generate_svg_content(config, projected_edges, bounds, svg_path):
     return svg_path
 
 
-def create_svg_from_json(json_path, svg_path):
-    config, projected_edges = setup_svg_renderer(json_path)
-    bounds = calculate_svg_bounds(config, projected_edges)
+def create_svg_from_json(json_path, svg_path, context=None):
+    if context is None:
+        context = SvgGenerationContext()
+
+    config, projected_edges = setup_svg_renderer(json_path, context)
+    bounds = calculate_svg_bounds(config, projected_edges, context)
     return generate_svg_content(config, projected_edges, bounds, svg_path)
 
 
@@ -1053,13 +1063,11 @@ def create_animated_gif(png_paths, output_path, capture_fps, animation_config):
 
 
 def create_svg_from_scene():
-    global _global_bbox
-
     print("Generating SVG...")
 
-    _global_bbox = None
+    context = SvgGenerationContext()
 
-    svg_path = create_svg_from_json(SCENE_CONFIG_PATH, SVG_PATH)
+    svg_path = create_svg_from_json(SCENE_CONFIG_PATH, SVG_PATH, context)
     print(f"SVG saved as {svg_path}")
 
     frame_json_files = sorted(glob.glob(os.path.join(FRAMES_DIR, FRAME_JSON_PATTERN)))
@@ -1069,7 +1077,7 @@ def create_svg_from_scene():
         svg_paths = []
         for json_path in frame_json_files:
             svg_path = json_path.replace(".json", ".svg")
-            create_svg_from_json(json_path, svg_path)
+            create_svg_from_json(json_path, svg_path, context)
             print(f"  Created {svg_path}")
             svg_paths.append(svg_path)
         print("Frame conversion complete!")
