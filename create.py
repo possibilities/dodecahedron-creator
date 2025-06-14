@@ -14,11 +14,12 @@ import glob
 import re
 from PIL import Image
 import copy
+import requests
+import math
 
 MODEL_PATH = "resources/dodecahedron.obj"
 CONFIG_FILE_PATH = "config.yaml"
 SHARED_SCENE_PATH = "build/shared_scene.json"
-THEMES_FILE_PATH = "themes.json"
 
 TIMER_INTERVAL_MS = 20
 VIEWER_FPS = 50
@@ -67,6 +68,205 @@ COLOR_MAP = {
     "gold": [1, 0.843, 0],
     "silver": [0.753, 0.753, 0.753],
 }
+
+
+def fetch_registry() -> dict:
+    url = "https://tweakcn.com/r/registry.json"
+    response = requests.get(url)
+    response.raise_for_status()
+    return response.json()
+
+
+def hsl_to_hex(hsl_string: str) -> str:
+    """Convert HSL string to hex color."""
+    # Extract HSL values
+    match = re.match(r"([\d.]+)\s+([\d.]+)%?\s+([\d.]+)%?", hsl_string.strip())
+    if not match:
+        return "#000000"
+
+    h = float(match.group(1))
+    s = float(match.group(2)) / 100
+    lightness = float(match.group(3)) / 100
+
+    # Convert HSL to RGB
+    c = (1 - abs(2 * lightness - 1)) * s
+    x = c * (1 - abs((h / 60) % 2 - 1))
+    m = lightness - c / 2
+
+    if 0 <= h < 60:
+        r, g, b = c, x, 0
+    elif 60 <= h < 120:
+        r, g, b = x, c, 0
+    elif 120 <= h < 180:
+        r, g, b = 0, c, x
+    elif 180 <= h < 240:
+        r, g, b = 0, x, c
+    elif 240 <= h < 300:
+        r, g, b = x, 0, c
+    else:
+        r, g, b = c, 0, x
+
+    r = int((r + m) * 255)
+    g = int((g + m) * 255)
+    b = int((b + m) * 255)
+
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
+def oklch_to_hex(oklch_string: str) -> str:
+    """Convert OKLCH to approximate hex (simplified conversion)."""
+    # Extract OKLCH values
+    match = re.match(
+        r"oklch\(([\d.]+)(?:%?)\s+([\d.]+)\s+([\d.]+)\)", oklch_string.strip()
+    )
+    if not match:
+        # Try without oklch prefix
+        match = re.match(r"([\d.]+)(?:%?)\s+([\d.]+)\s+([\d.]+)", oklch_string.strip())
+        if not match:
+            return "#000000"
+
+    lightness = float(match.group(1))
+    c = float(match.group(2))
+    h = float(match.group(3))
+
+    # For grayscale (when chroma is 0), just use lightness
+    if c == 0:
+        gray = int(lightness * 255)
+        return f"#{gray:02x}{gray:02x}{gray:02x}"
+
+    # Very simplified OKLCH to RGB conversion
+    # This is an approximation - proper conversion requires complex color space math
+
+    # Convert to approximate RGB based on hue
+    h_rad = h * 3.14159 / 180
+
+    # Approximate RGB conversion
+    if lightness > 1:
+        lightness = lightness / 100  # Handle percentage
+
+    # Base color from hue
+    r = lightness + c * math.cos(h_rad)
+    g = lightness + c * math.cos(h_rad - 2.094)
+    b = lightness + c * math.cos(h_rad + 2.094)
+
+    # Clamp and convert to 0-255
+    r = max(0, min(1, r))
+    g = max(0, min(1, g))
+    b = max(0, min(1, b))
+
+    r = int(r * 255)
+    g = int(g * 255)
+    b = int(b * 255)
+
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
+def rgb_to_hex(rgb_string: str) -> str:
+    """Convert RGB string to hex color."""
+    match = re.match(r"([\d.]+)\s+([\d.]+)\s+([\d.]+)", rgb_string.strip())
+    if not match:
+        return "#000000"
+
+    r = int(float(match.group(1)))
+    g = int(float(match.group(2)))
+    b = int(float(match.group(3)))
+
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
+def convert_color_to_hex(color_value: str) -> str:
+    """Convert any CSS color format to hex."""
+    color_value = color_value.strip()
+
+    # Already hex
+    if color_value.startswith("#"):
+        return color_value
+
+    # RGB format
+    if any(x in color_value.lower() for x in ["rgb", "255"]):
+        return rgb_to_hex(color_value)
+
+    # OKLCH format
+    if "oklch" in color_value.lower() or (
+        len(color_value.split()) == 3 and any("." in x for x in color_value.split())
+    ):
+        parts = color_value.split()
+        if len(parts) == 3 and all(any(c.isdigit() for c in p) for p in parts):
+            return oklch_to_hex(color_value)
+
+    # HSL format (default)
+    return hsl_to_hex(color_value)
+
+
+def extract_theme_colors(theme: dict) -> dict:
+    result = {
+        "name": theme.get("name", "Unknown"),
+        "title": theme.get("title", "Unknown"),
+        "light": None,
+        "dark": None,
+    }
+
+    css_vars = theme.get("cssVars", {})
+
+    if "light" in css_vars:
+        light_vars = css_vars["light"]
+        bg_raw = light_vars.get("background", "")
+        fg_raw = light_vars.get("foreground", "")
+
+        result["light"] = {
+            "background": convert_color_to_hex(bg_raw),
+            "foreground": convert_color_to_hex(fg_raw),
+            "background_raw": bg_raw,
+            "foreground_raw": fg_raw,
+        }
+
+    if "dark" in css_vars:
+        dark_vars = css_vars["dark"]
+        bg_raw = dark_vars.get("background", "")
+        fg_raw = dark_vars.get("foreground", "")
+
+        result["dark"] = {
+            "background": convert_color_to_hex(bg_raw),
+            "foreground": convert_color_to_hex(fg_raw),
+            "background_raw": bg_raw,
+            "foreground_raw": fg_raw,
+        }
+
+    return result
+
+
+def generate_themes_data() -> dict:
+    """Generate themes data by fetching from registry."""
+    try:
+        registry = fetch_registry()
+        themes = registry.get("items", [])
+
+        themes_data = {}
+
+        for theme in themes:
+            if theme.get("type") == "registry:style":
+                colors = extract_theme_colors(theme)
+
+                # Add light mode
+                if colors["light"]:
+                    theme_name = f"{colors['name']}-light"
+                    themes_data[theme_name] = {
+                        "foreground": colors["light"]["foreground"],
+                        "background": colors["light"]["background"],
+                    }
+
+                # Add dark mode
+                if colors["dark"]:
+                    theme_name = f"{colors['name']}-dark"
+                    themes_data[theme_name] = {
+                        "foreground": colors["dark"]["foreground"],
+                        "background": colors["dark"]["background"],
+                    }
+
+        return themes_data
+    except Exception as e:
+        print(f"Warning: Could not fetch themes from registry: {e}")
+        return {}
 
 
 def color_to_rgb(color):
@@ -134,14 +334,16 @@ class SvgGenerationContext:
         return self.global_bbox
 
 
+# Cache for themes to avoid fetching during animation
+_themes_cache = None
+
+
 def load_themes():
-    """Load themes from themes.json file."""
-    try:
-        with open(THEMES_FILE_PATH, "r") as f:
-            return json.load(f)
-    except Exception as e:
-        print(f"Warning: Could not load themes.json: {e}")
-        return {}
+    """Load themes by fetching from registry (cached)."""
+    global _themes_cache
+    if _themes_cache is None:
+        _themes_cache = generate_themes_data()
+    return _themes_cache
 
 
 def read_config_file():
@@ -1548,6 +1750,10 @@ def main():
         help="Start with default view, ignoring saved scene.json",
     )
     args = parser.parse_args()
+
+    # Pre-fetch themes before anything else to avoid network calls during animation
+    print("Fetching themes from registry...")
+    load_themes()
 
     config = read_config_file()
     if not config:
