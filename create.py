@@ -1142,26 +1142,33 @@ def main():
         print("\n" + "=" * 60)
         print("TWO-PHASE WORKFLOW ENABLED")
         print("=" * 60)
-        print("Phase 1: Animation capture")
-        print("Phase 2: Positioning for static SVG")
+        print("Phase 1: Positioning for static SVG")
+        print("Phase 2: Animation capture")
         print("=" * 60 + "\n")
 
-        configure_scene_in_viewer(use_fresh=args.fresh, mode="animation")
+        was_saved = configure_scene_in_viewer(use_fresh=args.fresh, mode="positioning")
 
-        if check_for_captured_frames():
+        if was_saved:
             print("\n" + "=" * 60)
-            print("Animation capture complete!")
-            print("Now opening positioning viewer...")
+            print("Positioning complete!")
+            print("Now opening animation viewer...")
             print("=" * 60 + "\n")
 
-            was_saved = configure_scene_in_viewer(use_fresh=False, mode="positioning")
+            configure_scene_in_viewer(use_fresh=False, mode="animation")
 
-            if was_saved:
+            if check_for_captured_frames():
+                print("\n" + "=" * 60)
+                print("Animation capture complete!")
+                print("Generating outputs...")
+                print("=" * 60 + "\n")
                 create_svg_from_scene()
             else:
-                print("\nPositioning cancelled - no outputs generated.")
+                print(
+                    "\nNo animation frames captured - only static SVG will be generated."
+                )
+                create_svg_from_scene()
         else:
-            print("\nNo animation frames captured - skipping positioning phase.")
+            print("\nPositioning cancelled - no outputs will be generated.")
     else:
         was_saved = configure_scene_in_viewer(use_fresh=args.fresh, mode="positioning")
         if was_saved:
