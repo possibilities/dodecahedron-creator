@@ -18,6 +18,7 @@ import copy
 MODEL_PATH = "resources/dodecahedron.obj"
 CONFIG_FILE_PATH = "config.yaml"
 SHARED_SCENE_PATH = "build/shared_scene.json"
+THEMES_FILE_PATH = "themes.json"
 
 TIMER_INTERVAL_MS = 20
 VIEWER_FPS = 50
@@ -133,15 +134,46 @@ class SvgGenerationContext:
         return self.global_bbox
 
 
+def load_themes():
+    """Load themes from themes.json file."""
+    try:
+        with open(THEMES_FILE_PATH, "r") as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Warning: Could not load themes.json: {e}")
+        return {}
+
+
 def read_config_file():
     try:
         with open(CONFIG_FILE_PATH, "r") as f:
             config = yaml.safe_load(f)
 
-            # Handle new styles format
-            styles = config.get("styles", [])
+            # Load theme names
+            theme_names = config.get("themes", [])
+            if not theme_names:
+                # Fallback to default themes if none defined
+                theme_names = ["modern-minimal-light", "modern-minimal-dark"]
+
+            # Load themes from themes.json
+            available_themes = load_themes()
+
+            # Convert themes to styles format
+            styles = []
+            for theme_name in theme_names:
+                if theme_name in available_themes:
+                    theme_data = available_themes[theme_name]
+                    style = {
+                        "name": theme_name,
+                        "background": theme_data["background"],
+                        "foreground": theme_data["foreground"],
+                    }
+                    styles.append(style)
+                else:
+                    print(f"Warning: Theme '{theme_name}' not found in themes.json")
+
             if not styles:
-                # Fallback to default styles if none defined
+                print("Error: No valid themes found. Using defaults.")
                 styles = [
                     {
                         "name": "black-on-white",
@@ -1526,14 +1558,14 @@ def main():
     styles = config.get("styles", [])
 
     if not styles:
-        print("Error: No styles defined in config.yaml")
+        print("Error: No themes loaded from configuration")
         return
 
     # Use first style for interactive positioning
     first_style = styles[0]
 
-    print(f"\nConfigured styles: {', '.join(s['name'] for s in styles)}")
-    print(f"Using '{first_style['name']}' style for positioning\n")
+    print(f"\nConfigured themes: {', '.join(s['name'] for s in styles)}")
+    print(f"Using '{first_style['name']}' theme for positioning\n")
 
     if capture_enabled:
         print("=" * 60)
@@ -1541,14 +1573,14 @@ def main():
         print("=" * 60)
         print("Phase 1: Camera positioning (once)")
         print("Phase 2: Animation preview (once)")
-        print("Phase 3: Generate outputs for all styles")
+        print("Phase 3: Generate outputs for all themes")
         print("=" * 60 + "\n")
     else:
         print("=" * 60)
         print("MULTI-STYLE WORKFLOW")
         print("=" * 60)
         print("Phase 1: Camera positioning (once)")
-        print("Phase 2: Generate outputs for all styles")
+        print("Phase 2: Generate outputs for all themes")
         print("=" * 60 + "\n")
 
     # Phase 1: Interactive positioning with first style
@@ -1577,9 +1609,9 @@ def main():
             style=first_style,
         )
 
-    # Phase 3: Generate outputs for all styles
+    # Phase 3: Generate outputs for all themes
     print("\n" + "=" * 60)
-    print("Generating outputs for all styles...")
+    print("Generating outputs for all themes...")
     print("=" * 60 + "\n")
 
     # Load the shared positioning
@@ -1594,7 +1626,7 @@ def main():
 
     for style in styles:
         print(f"\n{'=' * 40}")
-        print(f"Processing style: {style['name']}")
+        print(f"Processing theme: {style['name']}")
         print(f"{'=' * 40}\n")
 
         # Create style-specific config by merging positioning with style colors
@@ -1616,7 +1648,7 @@ def main():
         create_svg_from_scene(style["name"])
 
     print("\n" + "=" * 60)
-    print("ALL STYLES COMPLETE!")
+    print("ALL THEMES COMPLETE!")
     print("=" * 60)
     print("\nOutput directories:")
     for style in styles:

@@ -1,9 +1,9 @@
 {
   "camera": {
     "position": [
-      2.711506751209514,
-      0.03306062858936878,
-      6.140728548952455
+      0.0,
+      0.0,
+      6.712816769355277
     ],
     "focal_point": [
       0.0,
@@ -11,14 +11,14 @@
       0.0
     ],
     "view_up": [
-      -0.001615319241428258,
-      0.9999877885097905,
-      -0.004670500513530702
+      0.0,
+      1.0,
+      0.0
     ],
     "view_angle": 30.0,
     "clipping_range": [
-      3.9362987122323294,
-      10.224072675679812
+      4.515461261661725,
+      9.495026350895605
     ]
   },
   "mesh": {
@@ -53,12 +53,12 @@
         1.0
       ]
     ],
-    "color": "white",
+    "color": "#2f2e32",
     "linewidth": 4,
     "edge_color": [
-      0,
-      0,
-      0
+      1.0,
+      1.0,
+      1.0
     ]
   },
   "viewport": {
@@ -66,16 +66,16 @@
       2552,
       1432
     ],
-    "background_color": "black"
+    "background_color": "#ffffff"
   },
   "svg": {
-    "name": "white-on-black",
-    "background": "black",
-    "foreground": "white",
+    "name": "twitter-light",
+    "background": "#ffffff",
+    "foreground": "#2f2e32",
     "stroke_width": 12,
     "stroke_linecap": "round",
     "stroke_linejoin": "round",
-    "fill": "white",
-    "stroke": "black"
+    "fill": "#2f2e32",
+    "stroke": "#ffffff"
   }
 }
