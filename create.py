@@ -342,7 +342,7 @@ def calculate_rotation_and_apply(animation_state, plotter, mesh):
     return new_progress
 
 
-def handle_frame_capture(animation_state, plotter, mesh, config):
+def handle_frame_capture(animation_state, plotter, mesh, config, mode="positioning"):
     if (
         animation_state["capture_fps"] > 0
         and not animation_state["first_cycle_complete"]
@@ -358,7 +358,7 @@ def handle_frame_capture(animation_state, plotter, mesh, config):
             animation_state["last_capture_time"] = current_time
 
 
-def handle_rotation_completion(animation_state):
+def handle_rotation_completion(animation_state, mode="positioning"):
     if animation_state["rotation_progress"] >= 1.0:
         animation_state["current_rotation"] += 1
 
@@ -384,7 +384,7 @@ def handle_rotation_completion(animation_state):
             animation_state["total_rotation"] = 0.0
 
 
-def handle_key_press(evt, plotter, animation_state, mesh, config):
+def handle_key_press(evt, plotter, animation_state, mesh, config, mode="positioning"):
     if evt.keypress == "Up":
         cam = plotter.camera
         current_fov = cam.GetViewAngle()
@@ -433,7 +433,7 @@ def handle_key_press(evt, plotter, animation_state, mesh, config):
         print(f"Rotation animation {status}")
 
 
-def handle_timer(evt, plotter, mesh, config, animation_state):
+def handle_timer(evt, plotter, mesh, config, animation_state, mode="positioning"):
     update_animation_config_from_file(animation_state)
 
     if animation_state["rotation_enabled"]:
@@ -445,7 +445,7 @@ def handle_timer(evt, plotter, mesh, config, animation_state):
         handle_frame_capture(animation_state, plotter, mesh, config)
 
         if new_progress >= 1.0:
-            handle_rotation_completion(animation_state)
+            handle_rotation_completion(animation_state, mode)
 
         plotter.render()
 
@@ -489,7 +489,7 @@ def capture_frame_as_json(plotter, mesh, frame_number, config):
         ),
     }
 
-    frames_dir = "build/frames"
+    frames_dir = FRAMES_DIR
     os.makedirs(frames_dir, exist_ok=True)
     json_path = os.path.join(frames_dir, f"frame_{frame_number:04d}.json")
 
@@ -570,14 +570,14 @@ def setup_animation_state():
     return animation_state
 
 
-def register_event_handlers(plotter, mesh, config, animation_state):
+def register_event_handlers(plotter, mesh, config, animation_state, mode="positioning"):
     plotter.add_callback(
         "on key press",
-        lambda evt: handle_key_press(evt, plotter, animation_state, mesh, config),
+        lambda evt: handle_key_press(evt, plotter, animation_state, mesh, config, mode),
     )
     plotter.add_callback(
         "timer",
-        lambda evt: handle_timer(evt, plotter, mesh, config, animation_state),
+        lambda evt: handle_timer(evt, plotter, mesh, config, animation_state, mode),
         enable_picking=False,
     )
     plotter.timer_callback("create", dt=20)
@@ -621,14 +621,34 @@ def run_interactive_viewer(plotter, config, use_fresh):
     run_interactive_session(plotter)
 
 
-def configure_scene_in_viewer(use_fresh=False):
+def configure_scene_in_viewer(use_fresh=False, mode="positioning"):
     config, mesh, plotter = setup_scene_components(use_fresh)
     animation_state = setup_animation_state()
     register_event_handlers(plotter, mesh, config, animation_state)
+
+    if mode == "animation":
+        print("\n" + "=" * 60)
+        print("ANIMATION CAPTURE MODE")
+        print("=" * 60)
+        print("Press SPACEBAR to start/stop animation recording")
+        print("Close the viewer when animation capture is complete")
+        print("=" * 60 + "\n")
+    else:
+        print("\n" + "=" * 60)
+        print("POSITIONING MODE")
+        print("=" * 60)
+        print("Adjust the view for the final static SVG output")
+        print("Close the viewer when positioning is complete")
+        print("=" * 60 + "\n")
+
     print_keybindings()
     run_interactive_viewer(plotter, config, use_fresh)
 
-    was_saved = save_configuration(plotter, mesh, config, animation_state)
+    if mode == "positioning":
+        was_saved = save_configuration(plotter, mesh, config, animation_state)
+    else:
+        was_saved = False
+
     plotter.close()
     return was_saved
 
@@ -1099,6 +1119,11 @@ def create_svg_from_scene():
                 create_animated_gif(png_paths, GIF_PATH, config["capture_fps"], config)
 
 
+def check_for_captured_frames():
+    frame_json_files = glob.glob(os.path.join(FRAMES_DIR, FRAME_JSON_PATTERN))
+    return len(frame_json_files) > 0
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Interactive 3D dodecahedron viewer and SVG generator"
@@ -1110,24 +1135,52 @@ def main():
     )
     args = parser.parse_args()
 
-    was_saved = configure_scene_in_viewer(use_fresh=args.fresh)
-    if was_saved:
-        create_svg_from_scene()
-    else:
+    config = read_config_file()
+    capture_enabled = config and config.get("capture_fps", 0) > 0
+
+    if capture_enabled:
         print("\n" + "=" * 60)
-        print("⚠️  WARNING: ANIMATION WAS STILL RUNNING! ⚠️")
+        print("TWO-PHASE WORKFLOW ENABLED")
         print("=" * 60)
-        print("Nothing was saved because the rotation animation was")
-        print("active when you closed the viewer.")
-        print("")
-        print("• Scene was NOT saved to scene.json")
-        print("• SVG was NOT generated")
-        print("")
-        print("To save your work:")
-        print("1. Run the program again")
-        print("2. Press SPACEBAR to stop the animation")
-        print("3. Then close the viewer")
+        print("Phase 1: Animation capture")
+        print("Phase 2: Positioning for static SVG")
         print("=" * 60 + "\n")
+
+        configure_scene_in_viewer(use_fresh=args.fresh, mode="animation")
+
+        if check_for_captured_frames():
+            print("\n" + "=" * 60)
+            print("Animation capture complete!")
+            print("Now opening positioning viewer...")
+            print("=" * 60 + "\n")
+
+            was_saved = configure_scene_in_viewer(use_fresh=False, mode="positioning")
+
+            if was_saved:
+                create_svg_from_scene()
+            else:
+                print("\nPositioning cancelled - no outputs generated.")
+        else:
+            print("\nNo animation frames captured - skipping positioning phase.")
+    else:
+        was_saved = configure_scene_in_viewer(use_fresh=args.fresh, mode="positioning")
+        if was_saved:
+            create_svg_from_scene()
+        else:
+            print("\n" + "=" * 60)
+            print("⚠️  WARNING: ANIMATION WAS STILL RUNNING! ⚠️")
+            print("=" * 60)
+            print("Nothing was saved because the rotation animation was")
+            print("active when you closed the viewer.")
+            print("")
+            print("• Scene was NOT saved to scene.json")
+            print("• SVG was NOT generated")
+            print("")
+            print("To save your work:")
+            print("1. Run the program again")
+            print("2. Press SPACEBAR to stop the animation")
+            print("3. Then close the viewer")
+            print("=" * 60 + "\n")
 
 
 if __name__ == "__main__":
