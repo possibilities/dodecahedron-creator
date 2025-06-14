@@ -26,3 +26,9 @@ rotations: 2
 # bounceIn, bounceOut, bounceInOut
 # See: https://github.com/semitable/easing-functions for visualizations
 easing: quadInOut
+
+# Frame rate for capturing animation frames as JSON files
+# These JSON files can be converted to SVG after animation completes
+# Set to 0 to disable frame capture
+# Common values: 24, 30, 60 fps
+capture_fps: 30

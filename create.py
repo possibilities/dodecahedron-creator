@@ -27,6 +27,7 @@ def read_config_file():
                 "rotations": config.get("rotations", 1),
                 "easing": config.get("easing", "quadInOut"),
                 "continuous": config.get("continuous", False),
+                "capture_fps": config.get("capture_fps", 0),
             }
     except Exception:
         return None
@@ -207,6 +208,56 @@ def get_easing_function(easing_type):
     return func
 
 
+def capture_frame_as_json(plotter, mesh, frame_number, config):
+    """Capture the current state of the scene as a JSON file."""
+    camera = plotter.camera
+
+    transform_matrix = (
+        mesh.transform.matrix.tolist()
+        if hasattr(mesh.transform, "matrix")
+        else [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
+    )
+
+    scene_data = {
+        "camera": {
+            "position": list(camera.GetPosition()),
+            "focal_point": list(camera.GetFocalPoint()),
+            "view_up": list(camera.GetViewUp()),
+            "view_angle": camera.GetViewAngle(),
+            "clipping_range": list(camera.GetClippingRange()),
+        },
+        "mesh": {
+            "position": list(mesh.pos()),
+            "transform_matrix": transform_matrix,
+            "color": config["mesh"]["color"],
+            "linewidth": config["mesh"]["linewidth"],
+            "edge_color": config["mesh"]["edge_color"],
+        },
+        "viewport": {
+            "size": list(plotter.window.GetSize()),
+            "background_color": config["viewport"]["background_color"],
+        },
+        "svg": config.get(
+            "svg",
+            {
+                "stroke_width": 12,
+                "background": "white",
+                "fill": "black",
+                "stroke": "white",
+            },
+        ),
+    }
+
+    frames_dir = "build/frames"
+    os.makedirs(frames_dir, exist_ok=True)
+    json_path = os.path.join(frames_dir, f"frame_{frame_number:04d}.json")
+
+    with open(json_path, "w") as f:
+        json.dump(scene_data, f, indent=2)
+
+    print(f"  Captured frame {frame_number} -> {json_path}")
+
+
 def configure_scene_in_viewer(use_fresh=False):
     config = load_configuration(ignore_saved=use_fresh)
 
@@ -233,6 +284,10 @@ def configure_scene_in_viewer(use_fresh=False):
             "easing_type": initial_config["easing"],
             "easing_func": get_easing_function(initial_config["easing"]),
             "continuous": initial_config["continuous"],
+            "capture_fps": initial_config["capture_fps"],
+            "frame_counter": 0,
+            "last_capture_time": None,
+            "first_cycle_complete": False,
         }
         print(f"\nLoaded config from {CONFIG_FILE_PATH}:")
         print(f"  Azimuth: {initial_config['azimuth']}°")
@@ -246,6 +301,8 @@ def configure_scene_in_viewer(use_fresh=False):
             f"  Rotations: {initial_config['rotations']} ({initial_config['rotations'] * 360}° total)"
         )
         print(f"  Easing: {initial_config['easing']}")
+        if initial_config["capture_fps"] > 0:
+            print(f"  Frame capture: {initial_config['capture_fps']} fps (JSON)")
     else:
         animation_state = {
             "rotation_enabled": False,
@@ -263,6 +320,10 @@ def configure_scene_in_viewer(use_fresh=False):
             "easing_type": "quadInOut",
             "easing_func": get_easing_function("quadInOut"),
             "continuous": False,
+            "capture_fps": 0,
+            "frame_counter": 0,
+            "last_capture_time": None,
+            "first_cycle_complete": False,
         }
 
     def handle_key_press(evt):
@@ -292,6 +353,30 @@ def configure_scene_in_viewer(use_fresh=False):
 
             if animation_state["rotation_enabled"]:
                 animation_state["initial_transform"] = mesh.transform.clone()
+                animation_state["frame_counter"] = 0
+                animation_state["last_capture_time"] = (
+                    time.time() * 1000
+                )  # milliseconds
+                animation_state["first_cycle_complete"] = False
+
+                if animation_state["capture_fps"] > 0:
+                    # Clear existing frame files
+                    import glob
+
+                    frames_dir = "build/frames"
+                    existing_files = glob.glob(os.path.join(frames_dir, "frame_*.json"))
+                    existing_files.extend(
+                        glob.glob(os.path.join(frames_dir, "frame_*.svg"))
+                    )
+
+                    if existing_files:
+                        for f in existing_files:
+                            os.remove(f)
+                        print(f"Cleared {len(existing_files)} existing frame files")
+
+                    print(
+                        f"Frame capture enabled: {animation_state['capture_fps']} fps (JSON) - first animation cycle ({animation_state['rotations']} rotation{'s' if animation_state['rotations'] != 1 else ''})"
+                    )
 
             status = "started" if animation_state["rotation_enabled"] else "stopped"
             print(f"Rotation animation {status}")
@@ -305,6 +390,7 @@ def configure_scene_in_viewer(use_fresh=False):
             animation_state["pause_duration"] = config_from_file["pause"]
             animation_state["rotations"] = config_from_file["rotations"]
             animation_state["continuous"] = config_from_file["continuous"]
+            animation_state["capture_fps"] = config_from_file["capture_fps"]
 
             if config_from_file["easing"] != animation_state["easing_type"]:
                 animation_state["easing_type"] = config_from_file["easing"]
@@ -389,6 +475,26 @@ def configure_scene_in_viewer(use_fresh=False):
                 total_rotations * 360.0
             )
 
+            # Check if we need to capture a frame (only during first complete animation cycle)
+            if (
+                animation_state["capture_fps"] > 0
+                and not animation_state["first_cycle_complete"]
+            ):
+                current_time = time.time() * 1000  # milliseconds
+                frame_interval = (
+                    1000.0 / animation_state["capture_fps"]
+                )  # ms between frames
+
+                if (
+                    current_time - animation_state["last_capture_time"]
+                    >= frame_interval
+                ):
+                    animation_state["frame_counter"] += 1
+                    capture_frame_as_json(
+                        plotter, mesh, animation_state["frame_counter"], config
+                    )
+                    animation_state["last_capture_time"] = current_time
+
             if new_progress >= 1.0:
                 animation_state["current_rotation"] += 1
 
@@ -396,6 +502,16 @@ def configure_scene_in_viewer(use_fresh=False):
                     animation_state["rotation_progress"] = 0.0
                     animation_state["total_rotation"] = 0.0
                     animation_state["current_rotation"] = 0
+                    animation_state["first_cycle_complete"] = True
+
+                    # Print frame capture summary if frames were captured
+                    if (
+                        animation_state["capture_fps"] > 0
+                        and animation_state["frame_counter"] > 0
+                    ):
+                        print(
+                            f"\nFrame capture complete: {animation_state['frame_counter']} JSON frames saved to build/frames/"
+                        )
 
                     # Only pause if not in continuous mode
                     if not animation_state["continuous"]:
@@ -577,11 +693,28 @@ def convex_hull(points):
     return lower[:-1] + upper[:-1]
 
 
-def generate_svg(projected_edges, config):
-    """Generate SVG file from projected edges."""
+def create_svg_from_json(json_path, svg_path):
+    """Generate SVG from a JSON scene configuration."""
+    with open(json_path, "r") as f:
+        config = json.load(f)
+
+    plotter, mesh, camera = setup_offscreen_renderer(config)
+
+    visible_edges, vertices = calculate_visible_geometry(mesh, camera)
+
+    projected_edges = project_to_2d(plotter, visible_edges, vertices)
+
+    plotter.close()
+
+    # Generate SVG with custom path
     viewport_size = tuple(config["viewport"]["size"])
     svg_config = config["svg"]
 
+    # Use fixed viewport dimensions for stable output
+    svg_width = viewport_size[0]
+    svg_height = viewport_size[1]
+
+    # Collect all vertices for convex hull calculation
     all_vertices = set()
     for edge in projected_edges:
         start = (edge["start_2d"][0], viewport_size[1] - edge["start_2d"][1])
@@ -591,22 +724,7 @@ def generate_svg(projected_edges, config):
 
     vertices_list = list(all_vertices)
 
-    min_x = min(v[0] for v in vertices_list)
-    max_x = max(v[0] for v in vertices_list)
-    min_y = min(v[1] for v in vertices_list)
-    max_y = max(v[1] for v in vertices_list)
-
-    stroke_inset = svg_config["stroke_width"] / 2
-    min_x += stroke_inset
-    max_x -= stroke_inset
-    min_y += stroke_inset
-    max_y -= stroke_inset
-
-    svg_width = max_x - min_x
-    svg_height = max_y - min_y
-
-    os.makedirs("build", exist_ok=True)
-    dwg = svgwrite.Drawing(SVG_PATH, size=(svg_width, svg_height))
+    dwg = svgwrite.Drawing(svg_path, size=(svg_width, svg_height))
 
     dwg.add(
         dwg.rect(
@@ -615,8 +733,8 @@ def generate_svg(projected_edges, config):
     )
 
     hull_vertices = convex_hull(vertices_list)
-    translated_hull = [(x - min_x, y - min_y) for x, y in hull_vertices]
-    dwg.add(dwg.polygon(points=translated_hull, fill=svg_config["fill"], stroke="none"))
+    # Use absolute coordinates without translation for stable canvas
+    dwg.add(dwg.polygon(points=hull_vertices, fill=svg_config["fill"], stroke="none"))
 
     vertex_map = defaultdict(list)
     edge_used = [False] * len(projected_edges)
@@ -670,11 +788,11 @@ def generate_svg(projected_edges, config):
 
     for path in paths:
         flipped_path = [(p[0], viewport_size[1] - p[1]) for p in path]
-        translated_path = [(x - min_x, y - min_y) for x, y in flipped_path]
+        # Use absolute coordinates without translation for stable canvas
 
         dwg.add(
             dwg.polyline(
-                points=translated_path,
+                points=flipped_path,
                 fill="none",
                 stroke=svg_config["stroke"],
                 stroke_width=svg_config["stroke_width"],
@@ -684,24 +802,29 @@ def generate_svg(projected_edges, config):
         )
 
     dwg.save()
-    print(f"SVG saved as {SVG_PATH}")
+    return svg_path
 
 
 def create_svg_from_scene():
     """Main function to generate SVG from saved scene configuration."""
     print("Generating SVG...")
 
-    config = load_scene_data()
+    # Generate main SVG from scene.json
+    svg_path = create_svg_from_json(SCENE_CONFIG_PATH, SVG_PATH)
+    print(f"SVG saved as {svg_path}")
 
-    plotter, mesh, camera = setup_offscreen_renderer(config)
+    # Convert frame JSON files to SVG if they exist
+    import glob
 
-    visible_edges, vertices = calculate_visible_geometry(mesh, camera)
+    frame_json_files = sorted(glob.glob("build/frames/frame_*.json"))
 
-    projected_edges = project_to_2d(plotter, visible_edges, vertices)
-
-    plotter.close()
-
-    generate_svg(projected_edges, config)
+    if frame_json_files:
+        print(f"\nConverting {len(frame_json_files)} frame JSON files to SVG...")
+        for json_path in frame_json_files:
+            svg_path = json_path.replace(".json", ".svg")
+            create_svg_from_json(json_path, svg_path)
+            print(f"  Created {svg_path}")
+        print("Frame conversion complete!")
 
 
 def main():
