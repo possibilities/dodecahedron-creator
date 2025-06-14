@@ -250,6 +250,14 @@ def get_easing_function(easing_type):
 def update_animation_config_from_file(animation_state):
     config_from_file = read_config_file()
     if config_from_file is not None:
+        # Check if continuous mode changed
+        old_continuous = animation_state["continuous"]
+        new_continuous = config_from_file["continuous"]
+
+        # Check if pause duration changed during a pause
+        old_pause_duration = animation_state["pause_duration"]
+        new_pause_duration = config_from_file["pause"]
+
         animation_state["rotation_azimuth"] = config_from_file["azimuth"]
         animation_state["rotation_elevation"] = config_from_file["elevation"]
         animation_state["rotation_speed"] = config_from_file["speed"]
@@ -257,6 +265,31 @@ def update_animation_config_from_file(animation_state):
         animation_state["rotations"] = config_from_file["rotations"]
         animation_state["continuous"] = config_from_file["continuous"]
         animation_state["capture_fps"] = config_from_file["capture_fps"]
+
+        # If pause duration changed while paused, notify
+        if old_pause_duration != new_pause_duration:
+            if animation_state["is_paused"] and not new_continuous:
+                print(
+                    f"\nPause duration changed from {old_pause_duration}s to {new_pause_duration}s"
+                )
+            elif animation_state["rotation_enabled"]:
+                print(
+                    f"\nPause duration updated to {new_pause_duration}s (will apply after current rotation)"
+                )
+
+        # If switching from continuous to non-continuous and we're paused, update pause time
+        if old_continuous and not new_continuous and animation_state["is_paused"]:
+            # Reset pause to use new duration
+            animation_state["pause_start_time"] = time.time()
+            print(
+                f"\nPause duration updated to {animation_state['pause_duration']} seconds"
+            )
+
+        # If switching from non-continuous to continuous, cancel any pause
+        if not old_continuous and new_continuous and animation_state["is_paused"]:
+            animation_state["is_paused"] = False
+            animation_state["pause_start_time"] = None
+            print("\nContinuous mode enabled, cancelling pause")
 
         if config_from_file["easing"] != animation_state["easing_type"]:
             animation_state["easing_type"] = config_from_file["easing"]
@@ -272,6 +305,7 @@ def handle_animation_pause_logic(animation_state):
         if elapsed_pause >= animation_state["pause_duration"]:
             animation_state["is_paused"] = False
             animation_state["pause_start_time"] = None
+            print("Pause complete, resuming animation...")
             return True
         return False
     return True
@@ -429,6 +463,7 @@ def handle_rotation_completion(animation_state, mode="positioning", plotter=None
             if not animation_state["continuous"]:
                 animation_state["is_paused"] = True
                 animation_state["pause_start_time"] = time.time()
+                print(f"\nPausing for {animation_state['pause_duration']} seconds...")
         else:
             animation_state["rotation_progress"] = 0.0
             animation_state["total_rotation"] = 0.0
