@@ -43,13 +43,13 @@ svg:
   stroke_width: 12
   
   # SVG background color
-  background: "yellow"
+  background: "white"
   
   # Color of the filled dodecahedron shape
-  fill: "blue"
+  fill: "black"
   
   # Color of the edge lines
-  stroke: "orange"
+  stroke: "white"
   
   # Line end style: round, butt, or square
   stroke_linecap: "round"

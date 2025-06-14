@@ -47,6 +47,53 @@ FRAME_FILENAME_FORMAT = "frame_{:04d}.json"
 BBOX_PADDING_MULTIPLIER = 2
 IDENTITY_MATRIX_4X4 = [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
 
+# Common color names to RGB values
+COLOR_MAP = {
+    "black": [0, 0, 0],
+    "white": [1, 1, 1],
+    "red": [1, 0, 0],
+    "green": [0, 1, 0],
+    "blue": [0, 0, 1],
+    "yellow": [1, 1, 0],
+    "cyan": [0, 1, 1],
+    "magenta": [1, 0, 1],
+    "orange": [1, 0.647, 0],
+    "purple": [0.5, 0, 0.5],
+    "brown": [0.647, 0.165, 0.165],
+    "pink": [1, 0.753, 0.796],
+    "gray": [0.5, 0.5, 0.5],
+    "grey": [0.5, 0.5, 0.5],
+    "lightblue": [0.678, 0.847, 0.902],
+    "darkgreen": [0, 0.392, 0],
+    "gold": [1, 0.843, 0],
+    "silver": [0.753, 0.753, 0.753],
+}
+
+
+def color_to_rgb(color):
+    """Convert color name or hex to RGB values [0-1]. Returns the color unchanged if it's already RGB."""
+    if isinstance(color, list) and len(color) == 3:
+        return color
+    if isinstance(color, str):
+        # Check for hex color format
+        if color.startswith("#"):
+            # Remove the # and convert hex to RGB
+            hex_color = color.lstrip("#")
+            if len(hex_color) == 6:
+                try:
+                    r = int(hex_color[0:2], 16) / 255.0
+                    g = int(hex_color[2:4], 16) / 255.0
+                    b = int(hex_color[4:6], 16) / 255.0
+                    return [r, g, b]
+                except ValueError:
+                    pass
+        # Check for color name
+        color_lower = color.lower()
+        if color_lower in COLOR_MAP:
+            return COLOR_MAP[color_lower]
+    # Default to white if color not found
+    return [1, 1, 1]
+
 
 class SvgGenerationContext:
     def __init__(self):
@@ -124,6 +171,10 @@ def load_configuration(ignore_saved=False):
             config = json.load(f)
         # Always use fresh SVG settings from config.yaml
         config["svg"] = svg_settings
+        # Update viewer colors from SVG settings
+        config["viewport"]["background_color"] = svg_settings.get("background", "white")
+        config["mesh"]["color"] = svg_settings.get("fill", "black")
+        config["mesh"]["edge_color"] = color_to_rgb(svg_settings.get("stroke", "white"))
         print(f"Loaded scene from {SCENE_CONFIG_PATH}")
         return config
     else:
@@ -134,11 +185,11 @@ def load_configuration(ignore_saved=False):
         return {
             "camera": {},
             "mesh": {
-                "color": "black",
+                "color": svg_settings.get("fill", "black"),
                 "linewidth": 4,
-                "edge_color": [1, 1, 1],
+                "edge_color": color_to_rgb(svg_settings.get("stroke", "white")),
             },
-            "viewport": {"background_color": "white"},
+            "viewport": {"background_color": svg_settings.get("background", "white")},
             "svg": svg_settings,
         }
 
