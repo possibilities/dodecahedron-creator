@@ -9,6 +9,9 @@ import yaml
 import time
 import easing_functions as easing
 import cairosvg
+import glob
+import re
+from PIL import Image
 
 MODEL_PATH = "resources/dodecahedron.obj"
 SVG_PATH = "build/dodecahedron.svg"
@@ -203,6 +206,208 @@ def get_easing_function(easing_type):
     return func
 
 
+def update_animation_config_from_file(animation_state):
+    config_from_file = read_config_file()
+    if config_from_file is not None:
+        animation_state["rotation_azimuth"] = config_from_file["azimuth"]
+        animation_state["rotation_elevation"] = config_from_file["elevation"]
+        animation_state["rotation_speed"] = config_from_file["speed"]
+        animation_state["pause_duration"] = config_from_file["pause"]
+        animation_state["rotations"] = config_from_file["rotations"]
+        animation_state["continuous"] = config_from_file["continuous"]
+        animation_state["capture_fps"] = config_from_file["capture_fps"]
+
+        if config_from_file["easing"] != animation_state["easing_type"]:
+            animation_state["easing_type"] = config_from_file["easing"]
+            animation_state["easing_func"] = get_easing_function(
+                config_from_file["easing"]
+            )
+
+
+def handle_animation_pause_logic(animation_state):
+    if not animation_state["continuous"] and animation_state["is_paused"]:
+        current_time = time.time()
+        elapsed_pause = current_time - animation_state["pause_start_time"]
+        if elapsed_pause >= animation_state["pause_duration"]:
+            animation_state["is_paused"] = False
+            animation_state["pause_start_time"] = None
+            return True
+        return False
+    return True
+
+
+def calculate_rotation_and_apply(animation_state, plotter, mesh):
+    azimuth_rad = np.radians(animation_state["rotation_azimuth"])
+    elevation_rad = np.radians(animation_state["rotation_elevation"])
+
+    camera = plotter.camera
+    camera_pos = np.array(camera.GetPosition())
+    focal_point = np.array(camera.GetFocalPoint())
+    camera_up = np.array(camera.GetViewUp())
+
+    view_direction = focal_point - camera_pos
+    view_direction = view_direction / np.linalg.norm(view_direction)
+
+    camera_right = np.cross(view_direction, camera_up)
+    camera_right = camera_right / np.linalg.norm(camera_right)
+
+    camera_up = np.cross(camera_right, view_direction)
+    camera_up = camera_up / np.linalg.norm(camera_up)
+
+    rotation_axis_camera = np.array(
+        [
+            -np.sin(azimuth_rad),
+            np.cos(elevation_rad) * np.cos(azimuth_rad),
+            np.sin(elevation_rad),
+        ]
+    )
+
+    rotation_axis = (
+        rotation_axis_camera[0] * camera_right
+        + rotation_axis_camera[1] * camera_up
+        + rotation_axis_camera[2] * view_direction
+    )
+
+    rotation_axis = rotation_axis / np.linalg.norm(rotation_axis)
+
+    max_speed = animation_state["rotation_speed"]
+    progress_increment = max_speed / 360.0
+    new_progress = animation_state["rotation_progress"] + progress_increment
+
+    if new_progress >= 1.0:
+        new_progress = 1.0
+
+    total_rotations = animation_state["rotations"]
+    current_rotation = animation_state["current_rotation"]
+    overall_progress = (current_rotation + new_progress) / total_rotations
+
+    eased_overall_current = animation_state["easing_func"](overall_progress)
+
+    prev_overall_progress = (
+        current_rotation + animation_state["rotation_progress"]
+    ) / total_rotations
+    eased_overall_previous = animation_state["easing_func"](prev_overall_progress)
+
+    rotation_amount = (eased_overall_current - eased_overall_previous) * (
+        total_rotations * 360.0
+    )
+
+    mesh.rotate(rotation_amount, axis=rotation_axis, point=mesh.pos())
+
+    animation_state["rotation_progress"] = new_progress
+    animation_state["total_rotation"] = overall_progress * (total_rotations * 360.0)
+
+    return new_progress
+
+
+def handle_frame_capture(animation_state, plotter, mesh, config):
+    if (
+        animation_state["capture_fps"] > 0
+        and not animation_state["first_cycle_complete"]
+    ):
+        current_time = time.time() * 1000
+        frame_interval = 1000.0 / animation_state["capture_fps"]
+
+        if current_time - animation_state["last_capture_time"] >= frame_interval:
+            animation_state["frame_counter"] += 1
+            capture_frame_as_json(
+                plotter, mesh, animation_state["frame_counter"], config
+            )
+            animation_state["last_capture_time"] = current_time
+
+
+def handle_rotation_completion(animation_state):
+    if animation_state["rotation_progress"] >= 1.0:
+        animation_state["current_rotation"] += 1
+
+        if animation_state["current_rotation"] >= animation_state["rotations"]:
+            animation_state["rotation_progress"] = 0.0
+            animation_state["total_rotation"] = 0.0
+            animation_state["current_rotation"] = 0
+            animation_state["first_cycle_complete"] = True
+
+            if (
+                animation_state["capture_fps"] > 0
+                and animation_state["frame_counter"] > 0
+            ):
+                print(
+                    f"\nFrame capture complete: {animation_state['frame_counter']} JSON frames saved to build/frames/"
+                )
+
+            if not animation_state["continuous"]:
+                animation_state["is_paused"] = True
+                animation_state["pause_start_time"] = time.time()
+        else:
+            animation_state["rotation_progress"] = 0.0
+            animation_state["total_rotation"] = 0.0
+
+
+def handle_key_press(evt, plotter, animation_state, mesh, config):
+    if evt.keypress == "Up":
+        cam = plotter.camera
+        current_fov = cam.GetViewAngle()
+        new_fov = min(current_fov + 5, 120)
+        cam.SetViewAngle(new_fov)
+        print(f"FOV increased to {new_fov}°")
+        plotter.render()
+    elif evt.keypress == "Down":
+        cam = plotter.camera
+        current_fov = cam.GetViewAngle()
+        new_fov = max(current_fov - 5, 5)
+        cam.SetViewAngle(new_fov)
+        print(f"FOV decreased to {new_fov}°")
+        plotter.render()
+    elif evt.keypress == "space":
+        animation_state["rotation_enabled"] = not animation_state["rotation_enabled"]
+        animation_state["total_rotation"] = 0.0
+        animation_state["is_paused"] = False
+        animation_state["pause_start_time"] = None
+        animation_state["rotation_progress"] = 0.0
+        animation_state["current_rotation"] = 0
+
+        if animation_state["rotation_enabled"]:
+            animation_state["initial_transform"] = mesh.transform.clone()
+            animation_state["frame_counter"] = 0
+            animation_state["last_capture_time"] = time.time() * 1000
+            animation_state["first_cycle_complete"] = False
+
+            if animation_state["capture_fps"] > 0:
+                frames_dir = "build/frames"
+                existing_files = glob.glob(os.path.join(frames_dir, "frame_*.json"))
+                existing_files.extend(
+                    glob.glob(os.path.join(frames_dir, "frame_*.svg"))
+                )
+
+                if existing_files:
+                    for f in existing_files:
+                        os.remove(f)
+                    print(f"Cleared {len(existing_files)} existing frame files")
+
+                print(
+                    f"Frame capture enabled: {animation_state['capture_fps']} fps (JSON) - first animation cycle ({animation_state['rotations']} rotation{'s' if animation_state['rotations'] != 1 else ''})"
+                )
+
+        status = "started" if animation_state["rotation_enabled"] else "stopped"
+        print(f"Rotation animation {status}")
+
+
+def handle_timer(evt, plotter, mesh, config, animation_state):
+    update_animation_config_from_file(animation_state)
+
+    if animation_state["rotation_enabled"]:
+        if not handle_animation_pause_logic(animation_state):
+            return
+
+        new_progress = calculate_rotation_and_apply(animation_state, plotter, mesh)
+
+        handle_frame_capture(animation_state, plotter, mesh, config)
+
+        if new_progress >= 1.0:
+            handle_rotation_completion(animation_state)
+
+        plotter.render()
+
+
 def capture_frame_as_json(plotter, mesh, frame_number, config):
     camera = plotter.camera
 
@@ -252,14 +457,15 @@ def capture_frame_as_json(plotter, mesh, frame_number, config):
     print(f"  Captured frame {frame_number} -> {json_path}")
 
 
-def configure_scene_in_viewer(use_fresh=False):
+def setup_scene_components(use_fresh=False):
     config = load_configuration(ignore_saved=use_fresh)
-
     mesh = setup_mesh(config)
-
     plotter = create_viewer(config)
     plotter.add(mesh)
+    return config, mesh, plotter
 
+
+def setup_animation_state():
     initial_config = read_config_file()
     if initial_config:
         animation_state = {
@@ -319,6 +525,68 @@ def configure_scene_in_viewer(use_fresh=False):
             "last_capture_time": None,
             "first_cycle_complete": False,
         }
+    return animation_state
+
+
+def register_event_handlers(plotter, mesh, config, animation_state):
+    plotter.add_callback(
+        "on key press",
+        lambda evt: handle_key_press(evt, plotter, animation_state, mesh, config),
+    )
+    plotter.add_callback(
+        "timer",
+        lambda evt: handle_timer(evt, plotter, mesh, config, animation_state),
+        enable_picking=False,
+    )
+    plotter.timer_callback("create", dt=20)
+
+
+def print_keybindings():
+    print("\n=== Keybindings ===")
+    print("Camera Controls:")
+    print("  Mouse Left   : Rotate camera")
+    print("  Mouse Right  : Zoom/dolly")
+    print("  Mouse Middle : Pan/translate")
+    print("  Up Arrow     : Increase FOV by 5°")
+    print("  Down Arrow   : Decrease FOV by 5°")
+    print("\nAnimation:")
+    print("  Spacebar     : Toggle rotation animation")
+    print("\nRotation Controls (via config.yaml):")
+    print("  azimuth      : Horizontal angle (0-360°)")
+    print("  elevation    : Vertical angle (-90° to +90°)")
+    print("  speed        : Rotation speed (0-10°/frame)")
+    print("  pause        : Pause duration after rotation sequence (seconds)")
+    print("  continuous   : Enable continuous rotation without pauses")
+    print("  rotations    : Number of full rotations (1=360°, 2=720°, etc.)")
+    print("  easing       : Animation easing function (see config.yaml for options)")
+    print("\nUtility:")
+    print("  q            : Quit and save scene")
+    print("  r            : Reset camera")
+    print("  s            : Screenshot")
+    print("==================\n")
+
+
+def run_interactive_viewer(plotter, config, use_fresh):
+    config_file = SCENE_CONFIG_PATH
+    setup_camera(plotter, config)
+    if not use_fresh and os.path.exists(config_file) and config["camera"]:
+        plotter.show(axes=0, interactive=False, resetcam=False)
+    else:
+        plotter.show(axes=0, interactive=False, resetcam=True)
+
+    run_interactive_session(plotter)
+
+
+def configure_scene_in_viewer(use_fresh=False):
+    config, mesh, plotter = setup_scene_components(use_fresh)
+    animation_state = setup_animation_state()
+    register_event_handlers(plotter, mesh, config, animation_state)
+    print_keybindings()
+    run_interactive_viewer(plotter, config, use_fresh)
+
+    was_saved = save_configuration(plotter, mesh, config, animation_state)
+    plotter.close()
+    return was_saved
 
     def handle_key_press(evt):
         if evt.keypress == "Up":
@@ -352,8 +620,6 @@ def configure_scene_in_viewer(use_fresh=False):
                 animation_state["first_cycle_complete"] = False
 
                 if animation_state["capture_fps"] > 0:
-                    import glob
-
                     frames_dir = "build/frames"
                     existing_files = glob.glob(os.path.join(frames_dir, "frame_*.json"))
                     existing_files.extend(
@@ -675,10 +941,7 @@ def convex_hull(points):
 def get_global_bounding_box(config):
     plotter, mesh, camera = setup_offscreen_renderer(config)
 
-    # Get all vertices of the mesh
     all_mesh_vertices = mesh.vertices
-
-    # Project all vertices to 2D
     renderer = plotter.renderer
     all_2d_points = []
 
@@ -692,7 +955,6 @@ def get_global_bounding_box(config):
 
     if all_2d_points:
         viewport_size = tuple(config["viewport"]["size"])
-        # Convert to SVG coordinates
         svg_points = [(p[0], viewport_size[1] - p[1]) for p in all_2d_points]
 
         min_x = min(p[0] for p in svg_points)
@@ -700,21 +962,15 @@ def get_global_bounding_box(config):
         min_y = min(p[1] for p in svg_points)
         max_y = max(p[1] for p in svg_points)
 
-        # Calculate center point
         center_x = (min_x + max_x) / 2
         center_y = (min_y + max_y) / 2
-
-        # Calculate radius that encompasses all points
         radius = max(
             max(abs(p[0] - center_x) for p in svg_points),
             max(abs(p[1] - center_y) for p in svg_points),
         )
 
-        # Add padding
         padding = config["svg"]["stroke_width"] * 2
         radius += padding
-
-        # Create square bounding box centered at the object
         return {
             "min_x": center_x - radius,
             "max_x": center_x + radius,
@@ -729,32 +985,36 @@ def get_global_bounding_box(config):
 _global_bbox = None
 
 
-def create_svg_from_json(json_path, svg_path):
-    global _global_bbox
-
+def setup_svg_renderer(json_path):
     with open(json_path, "r") as f:
         config = json.load(f)
 
+    global _global_bbox
     if _global_bbox is None:
         _global_bbox = get_global_bounding_box(config)
 
     plotter, mesh, camera = setup_offscreen_renderer(config)
-
     visible_edges, vertices = calculate_visible_geometry(mesh, camera)
-
     projected_edges = project_to_2d(plotter, visible_edges, vertices)
-
     plotter.close()
 
+    return config, projected_edges
+
+
+def calculate_svg_bounds(config, projected_edges):
+    global _global_bbox
     viewport_size = tuple(config["viewport"]["size"])
     svg_config = config["svg"]
 
     if _global_bbox:
-        min_x = _global_bbox["min_x"]
-        max_x = _global_bbox["max_x"]
-        min_y = _global_bbox["min_y"]
-        max_y = _global_bbox["max_y"]
-        svg_width = svg_height = _global_bbox["size"]
+        return {
+            "min_x": _global_bbox["min_x"],
+            "max_x": _global_bbox["max_x"],
+            "min_y": _global_bbox["min_y"],
+            "max_y": _global_bbox["max_y"],
+            "svg_width": _global_bbox["size"],
+            "svg_height": _global_bbox["size"],
+        }
     else:
         all_vertices = set()
         for edge in projected_edges:
@@ -779,7 +1039,6 @@ def create_svg_from_json(json_path, svg_path):
 
             svg_width = max_x - min_x
             svg_height = max_y - min_y
-
             max_dim = max(svg_width, svg_height)
 
             if svg_width < max_dim:
@@ -793,11 +1052,32 @@ def create_svg_from_json(json_path, svg_path):
                 min_y -= y_offset
                 max_y += y_offset
                 svg_height = max_dim
+
+            return {
+                "min_x": min_x,
+                "max_x": max_x,
+                "min_y": min_y,
+                "max_y": max_y,
+                "svg_width": svg_width,
+                "svg_height": svg_height,
+            }
         else:
-            svg_width = viewport_size[0]
-            svg_height = viewport_size[1]
-            min_x = 0
-            min_y = 0
+            return {
+                "min_x": 0,
+                "min_y": 0,
+                "svg_width": viewport_size[0],
+                "svg_height": viewport_size[1],
+            }
+
+
+def generate_svg_content(config, projected_edges, bounds, svg_path):
+    viewport_size = tuple(config["viewport"]["size"])
+    svg_config = config["svg"]
+
+    min_x = bounds["min_x"]
+    min_y = bounds["min_y"]
+    svg_width = bounds["svg_width"]
+    svg_height = bounds["svg_height"]
 
     all_vertices = set()
     for edge in projected_edges:
@@ -889,12 +1169,16 @@ def create_svg_from_json(json_path, svg_path):
     return svg_path
 
 
+def create_svg_from_json(json_path, svg_path):
+    config, projected_edges = setup_svg_renderer(json_path)
+    bounds = calculate_svg_bounds(config, projected_edges)
+    return generate_svg_content(config, projected_edges, bounds, svg_path)
+
+
 def rasterize_svg_frames(svg_paths, target_height):
     for svg_path in svg_paths:
         with open(svg_path, "r") as f:
             svg_content = f.read()
-
-        import re
 
         width_match = re.search(r'width="([\d.]+)"', svg_content)
         height_match = re.search(r'height="([\d.]+)"', svg_content)
@@ -928,8 +1212,6 @@ def rasterize_svg_frames(svg_paths, target_height):
 
 
 def create_animated_gif(png_paths, output_path, capture_fps, animation_config):
-    from PIL import Image
-
     images = []
     for png_path in png_paths:
         if os.path.exists(png_path):
@@ -975,8 +1257,6 @@ def create_svg_from_scene():
 
     svg_path = create_svg_from_json(SCENE_CONFIG_PATH, SVG_PATH)
     print(f"SVG saved as {svg_path}")
-
-    import glob
 
     frame_json_files = sorted(glob.glob("build/frames/frame_*.json"))
 
