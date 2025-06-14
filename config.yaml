@@ -73,3 +73,67 @@ styles:
     stroke: "#FFE66D"
     stroke_linecap: "round"
     stroke_linejoin: "round"
+  
+  - name: "mono"
+    stroke_width: 10
+    background: "#FFFFFF"
+    fill: "#1A1A1A"
+    stroke: "#FFFFFF"
+    stroke_linecap: "round"
+    stroke_linejoin: "round"
+  
+  - name: "mono-dark"
+    stroke_width: 10
+    background: "#0D0D0D"
+    fill: "#E5E5E5"
+    stroke: "#0D0D0D"
+    stroke_linecap: "round"
+    stroke_linejoin: "round"
+  
+  - name: "mono-gray"
+    stroke_width: 10
+    background: "#F5F5F5"
+    fill: "#404040"
+    stroke: "#F5F5F5"
+    stroke_linecap: "round"
+    stroke_linejoin: "round"
+  
+  - name: "mono-gray-dark"
+    stroke_width: 10
+    background: "#2A2A2A"
+    fill: "#B8B8B8"
+    stroke: "#2A2A2A"
+    stroke_linecap: "round"
+    stroke_linejoin: "round"
+  
+  - name: "forest"
+    stroke_width: 10
+    background: "#F5F5DC"
+    fill: "#2D4A2B"
+    stroke: "#F5F5DC"
+    stroke_linecap: "round"
+    stroke_linejoin: "round"
+  
+  - name: "forest-dark"
+    stroke_width: 10
+    background: "#1A1F1A"
+    fill: "#8FBC8F"
+    stroke: "#1A1F1A"
+    stroke_linecap: "round"
+    stroke_linejoin: "round"
+  
+  - name: "ocean"
+    stroke_width: 10
+    background: "#F0F8FF"
+    fill: "#1E3A5F"
+    stroke: "#F0F8FF"
+    stroke_linecap: "round"
+    stroke_linejoin: "round"
+  
+  - name: "ocean-dark"
+    stroke_width: 10
+    background: "#0C1821"
+    fill: "#5F9EA0"
+    stroke: "#0C1821"
+    stroke_linecap: "round"
+    stroke_linejoin: "round"

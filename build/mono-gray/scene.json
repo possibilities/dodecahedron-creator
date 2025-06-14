@@ -53,12 +53,12 @@
         1.0
       ]
     ],
-    "color": "black",
+    "color": "#404040",
     "linewidth": 4,
     "edge_color": [
-      1,
-      1,
-      1
+      0.9607843137254902,
+      0.9607843137254902,
+      0.9607843137254902
     ]
   },
   "viewport": {
@@ -66,14 +66,14 @@
       2552,
       1432
     ],
-    "background_color": "white"
+    "background_color": "#F5F5F5"
   },
   "svg": {
-    "name": "default",
-    "stroke_width": 12,
-    "background": "white",
-    "fill": "black",
-    "stroke": "white",
+    "name": "mono-gray",
+    "stroke_width": 10,
+    "background": "#F5F5F5",
+    "fill": "#404040",
+    "stroke": "#F5F5F5",
     "stroke_linecap": "round",
     "stroke_linejoin": "round"
   }

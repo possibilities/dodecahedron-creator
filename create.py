@@ -618,7 +618,7 @@ def handle_timer(evt, plotter, mesh, config, animation_state, mode="positioning"
         plotter.render()
 
 
-def capture_frame_as_json(plotter, mesh, frame_number, config, style_name=None):
+def capture_frame_as_json(plotter, mesh, frame_number, config):
     camera = plotter.camera
 
     transform_matrix = (
@@ -638,19 +638,7 @@ def capture_frame_as_json(plotter, mesh, frame_number, config, style_name=None):
         print(f"  Frame 1 - Camera focal point: {list(camera.GetFocalPoint())}")
         print(f"  Frame 1 - Using focal point: {focal_point}")
 
-    # Use SVG settings from the config parameter (which has the style-specific settings)
-    svg_settings = config.get(
-        "svg",
-        {
-            "stroke_width": DEFAULT_SVG_STROKE_WIDTH,
-            "background": DEFAULT_BACKGROUND_COLOR,
-            "fill": DEFAULT_SVG_FILL,
-            "stroke": DEFAULT_SVG_STROKE,
-            "stroke_linecap": "round",
-            "stroke_linejoin": "round",
-        },
-    )
-
+    # Store only geometry and camera data, no style information
     scene_data = {
         "camera": {
             "position": list(camera.GetPosition()),
@@ -662,18 +650,14 @@ def capture_frame_as_json(plotter, mesh, frame_number, config, style_name=None):
         "mesh": {
             "position": list(mesh.pos()),
             "transform_matrix": transform_matrix,
-            "color": config["mesh"]["color"],
-            "linewidth": config["mesh"]["linewidth"],
-            "edge_color": config["mesh"]["edge_color"],
         },
         "viewport": {
             "size": list(plotter.window.GetSize()),
-            "background_color": config["viewport"]["background_color"],
         },
-        "svg": svg_settings,
     }
 
-    frames_dir = get_frames_dir(style_name) if style_name else "build/frames"
+    # Always save to shared frames directory
+    frames_dir = "build/frames"
     os.makedirs(frames_dir, exist_ok=True)
     json_path = os.path.join(frames_dir, f"frame_{frame_number:04d}.json")
 
@@ -1047,9 +1031,17 @@ def get_global_bounding_box(config):
     return None
 
 
-def setup_svg_renderer(json_path, context):
+def setup_svg_renderer(json_path, context, style=None):
     with open(json_path, "r") as f:
         config = json.load(f)
+
+    # If style is provided, merge it with the config
+    if style:
+        config["svg"] = style
+        config["mesh"]["color"] = style.get("fill", "black")
+        config["mesh"]["linewidth"] = 4
+        config["mesh"]["edge_color"] = color_to_rgb(style.get("stroke", "white"))
+        config["viewport"]["background_color"] = style.get("background", "white")
 
     context.get_or_calculate_bbox(config)
 
@@ -1228,11 +1220,11 @@ def generate_svg_content(config, projected_edges, bounds, svg_path):
     return svg_path
 
 
-def create_svg_from_json(json_path, svg_path, context=None):
+def create_svg_from_json(json_path, svg_path, context=None, style=None):
     if context is None:
         context = SvgGenerationContext()
 
-    config, projected_edges = setup_svg_renderer(json_path, context)
+    config, projected_edges = setup_svg_renderer(json_path, context, style)
     bounds = calculate_svg_bounds(config, projected_edges, context)
     return generate_svg_content(config, projected_edges, bounds, svg_path)
 
@@ -1331,19 +1323,38 @@ def create_svg_from_scene(style_name=None):
 
     scene_path = get_scene_config_path(style_name) if style_name else SHARED_SCENE_PATH
     svg_path = get_svg_path(style_name) if style_name else "build/dodecahedron.svg"
-    frames_dir = get_frames_dir(style_name) if style_name else "build/frames"
 
+    # Load style information from scene.json if style_name is provided
+    style = None
+    if style_name:
+        with open(scene_path, "r") as f:
+            scene_config = json.load(f)
+            style = scene_config.get("svg")
+
+    # Generate the static SVG
     svg_output = create_svg_from_json(scene_path, svg_path, context)
     print(f"SVG saved as {svg_output}")
 
-    frame_json_files = sorted(glob.glob(os.path.join(frames_dir, FRAME_JSON_PATTERN)))
+    # Always use shared frames directory
+    shared_frames_dir = "build/frames"
+    frame_json_files = sorted(
+        glob.glob(os.path.join(shared_frames_dir, FRAME_JSON_PATTERN))
+    )
 
-    if frame_json_files:
-        print(f"\nConverting {len(frame_json_files)} frame JSON files to SVG...")
+    if frame_json_files and style_name:
+        print(
+            f"\nConverting {len(frame_json_files)} frame JSON files to SVG for style '{style_name}'..."
+        )
+
+        # Create style-specific frames directory for temporary SVG/PNG files
+        style_frames_dir = get_frames_dir(style_name)
+        os.makedirs(style_frames_dir, exist_ok=True)
+
         svg_paths = []
         for json_path in frame_json_files:
-            svg_path = json_path.replace(".json", ".svg")
-            create_svg_from_json(json_path, svg_path, context)
+            frame_name = os.path.basename(json_path).replace(".json", ".svg")
+            svg_path = os.path.join(style_frames_dir, frame_name)
+            create_svg_from_json(json_path, svg_path, context, style)
             print(f"  Created {svg_path}")
             svg_paths.append(svg_path)
         print("Frame conversion complete!")
@@ -1362,23 +1373,31 @@ def create_svg_from_scene(style_name=None):
                 and config.get("capture_fps", 0) > 0
             ):
                 print(f"\nCreating animated GIF from {len(png_paths)} frames...")
-                gif_path = (
-                    get_gif_path(style_name) if style_name else "build/animation.gif"
-                )
-                create_animated_gif(png_paths, gif_path, config["capture_fps"], config)
+                gif_path = get_gif_path(style_name)
+                if create_animated_gif(
+                    png_paths, gif_path, config["capture_fps"], config
+                ):
+                    # Clean up temporary frame SVGs and PNGs
+                    print("\nCleaning up temporary frame files...")
+                    for svg_path in svg_paths:
+                        if os.path.exists(svg_path):
+                            os.remove(svg_path)
+                    for png_path in png_paths:
+                        if os.path.exists(png_path):
+                            os.remove(png_path)
+                    print("Cleanup complete!")
 
 
-def run_headless_recording(config, style_name=None):
+def run_headless_recording(config):
     """Run a headless animation cycle to capture frames"""
     print("\n" + "=" * 60)
-    print(f"HEADLESS RECORDING{' for style: ' + style_name if style_name else ''}")
+    print("HEADLESS RECORDING")
     print("=" * 60)
 
-    # Clear existing frame files
-    frames_dir = get_frames_dir(style_name) if style_name else "build/frames"
+    # Clear existing frame files in shared frames directory
+    frames_dir = "build/frames"
     os.makedirs(frames_dir, exist_ok=True)
     existing_files = glob.glob(os.path.join(frames_dir, "frame_*.json"))
-    existing_files.extend(glob.glob(os.path.join(frames_dir, "frame_*.svg")))
     if existing_files:
         for f in existing_files:
             os.remove(f)
@@ -1432,7 +1451,6 @@ def run_headless_recording(config, style_name=None):
                         mesh,
                         animation_state["frame_counter"],
                         config,
-                        style_name,
                     )
                     animation_state["last_capture_time"] = current_time
                     frames_captured += 1
@@ -1455,7 +1473,6 @@ def run_headless_recording(config, style_name=None):
                             mesh,
                             animation_state["frame_counter"],
                             config,
-                            style_name,
                         )
                         frames_captured += 1
 
@@ -1563,6 +1580,13 @@ def main():
     # Load the shared positioning
     shared_config = load_scene_data(SHARED_SCENE_PATH)
 
+    # Run headless recording once if animation is enabled
+    if capture_enabled:
+        frames_recorded = run_headless_recording(shared_config)
+        if not frames_recorded:
+            print("\nNo animation frames captured")
+            capture_enabled = False  # Disable animation for styles if no frames
+
     for style in styles:
         print(f"\n{'=' * 40}")
         print(f"Processing style: {style['name']}")
@@ -1582,13 +1606,6 @@ def main():
         with open(style_scene_path, "w") as f:
             json.dump(style_config, f, indent=2)
         print(f"Saved style config to {style_scene_path}")
-
-        # Run headless recording if animation is enabled
-        if capture_enabled:
-            frames_recorded = run_headless_recording(style_config, style["name"])
-
-            if not frames_recorded:
-                print(f"\nNo animation frames captured for style '{style['name']}'")
 
         # Generate SVG outputs
         create_svg_from_scene(style["name"])

@@ -53,12 +53,12 @@
         1.0
       ]
     ],
-    "color": "black",
+    "color": "#1E3A5F",
     "linewidth": 4,
     "edge_color": [
-      1,
-      1,
-      1
+      0.9411764705882353,
+      0.9725490196078431,
+      1.0
     ]
   },
   "viewport": {
@@ -66,14 +66,14 @@
       2552,
       1432
     ],
-    "background_color": "white"
+    "background_color": "#F0F8FF"
   },
   "svg": {
-    "name": "default",
-    "stroke_width": 12,
-    "background": "white",
-    "fill": "black",
-    "stroke": "white",
+    "name": "ocean",
+    "stroke_width": 10,
+    "background": "#F0F8FF",
+    "fill": "#1E3A5F",
+    "stroke": "#F0F8FF",
     "stroke_linecap": "round",
     "stroke_linejoin": "round"
   }
