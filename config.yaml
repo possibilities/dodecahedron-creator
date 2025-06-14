@@ -9,7 +9,7 @@ elevation: 0
 speed: 3.5
 
 # Pause duration in seconds after each 360 degree rotation
-pause: 5.0
+pause: 0.45
 
 # Continuous mode - when true, rotation continues smoothly without pauses
 # The easing function creates natural speed variations at rotation boundaries
