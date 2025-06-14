@@ -94,9 +94,36 @@ def read_config_file():
 def load_configuration(ignore_saved=False):
     config_file = SCENE_CONFIG_PATH
 
+    # Always read SVG settings from config.yaml to use as source of truth
+    config_from_file = read_config_file()
+    svg_settings = (
+        config_from_file.get(
+            "svg",
+            {
+                "stroke_width": DEFAULT_SVG_STROKE_WIDTH,
+                "background": DEFAULT_BACKGROUND_COLOR,
+                "fill": DEFAULT_SVG_FILL,
+                "stroke": DEFAULT_SVG_STROKE,
+                "stroke_linecap": "round",
+                "stroke_linejoin": "round",
+            },
+        )
+        if config_from_file
+        else {
+            "stroke_width": DEFAULT_SVG_STROKE_WIDTH,
+            "background": DEFAULT_BACKGROUND_COLOR,
+            "fill": DEFAULT_SVG_FILL,
+            "stroke": DEFAULT_SVG_STROKE,
+            "stroke_linecap": "round",
+            "stroke_linejoin": "round",
+        }
+    )
+
     if not ignore_saved and os.path.exists(config_file):
         with open(config_file, "r") as f:
             config = json.load(f)
+        # Always use fresh SVG settings from config.yaml
+        config["svg"] = svg_settings
         print(f"Loaded scene from {SCENE_CONFIG_PATH}")
         return config
     else:
@@ -112,6 +139,7 @@ def load_configuration(ignore_saved=False):
                 "edge_color": [1, 1, 1],
             },
             "viewport": {"background_color": "white"},
+            "svg": svg_settings,
         }
 
 
@@ -178,6 +206,31 @@ def save_configuration(plotter, mesh, config, animation_state):
         else config["mesh"]["transform_matrix"]
     )
 
+    # Always read fresh SVG settings from config.yaml
+    config_from_file = read_config_file()
+    svg_settings = (
+        config_from_file.get(
+            "svg",
+            {
+                "stroke_width": DEFAULT_SVG_STROKE_WIDTH,
+                "background": DEFAULT_BACKGROUND_COLOR,
+                "fill": DEFAULT_SVG_FILL,
+                "stroke": DEFAULT_SVG_STROKE,
+                "stroke_linecap": "round",
+                "stroke_linejoin": "round",
+            },
+        )
+        if config_from_file
+        else {
+            "stroke_width": DEFAULT_SVG_STROKE_WIDTH,
+            "background": DEFAULT_BACKGROUND_COLOR,
+            "fill": DEFAULT_SVG_FILL,
+            "stroke": DEFAULT_SVG_STROKE,
+            "stroke_linecap": "round",
+            "stroke_linejoin": "round",
+        }
+    )
+
     scene_data = {
         "camera": {
             "position": final_position,
@@ -197,17 +250,7 @@ def save_configuration(plotter, mesh, config, animation_state):
             "size": list(plotter.window.GetSize()),
             "background_color": config["viewport"]["background_color"],
         },
-        "svg": config.get(
-            "svg",
-            {
-                "stroke_width": DEFAULT_SVG_STROKE_WIDTH,
-                "background": DEFAULT_BACKGROUND_COLOR,
-                "fill": DEFAULT_SVG_FILL,
-                "stroke": DEFAULT_SVG_STROKE,
-                "stroke_linecap": "round",
-                "stroke_linejoin": "round",
-            },
-        ),
+        "svg": svg_settings,
     }
 
     os.makedirs("build", exist_ok=True)
@@ -496,6 +539,31 @@ def capture_frame_as_json(plotter, mesh, frame_number, config):
         print(f"  Frame 1 - Camera focal point: {list(camera.GetFocalPoint())}")
         print(f"  Frame 1 - Using focal point: {focal_point}")
 
+    # Always read fresh SVG settings from config.yaml
+    config_from_file = read_config_file()
+    svg_settings = (
+        config_from_file.get(
+            "svg",
+            {
+                "stroke_width": DEFAULT_SVG_STROKE_WIDTH,
+                "background": DEFAULT_BACKGROUND_COLOR,
+                "fill": DEFAULT_SVG_FILL,
+                "stroke": DEFAULT_SVG_STROKE,
+                "stroke_linecap": "round",
+                "stroke_linejoin": "round",
+            },
+        )
+        if config_from_file
+        else {
+            "stroke_width": DEFAULT_SVG_STROKE_WIDTH,
+            "background": DEFAULT_BACKGROUND_COLOR,
+            "fill": DEFAULT_SVG_FILL,
+            "stroke": DEFAULT_SVG_STROKE,
+            "stroke_linecap": "round",
+            "stroke_linejoin": "round",
+        }
+    )
+
     scene_data = {
         "camera": {
             "position": list(camera.GetPosition()),
@@ -515,17 +583,7 @@ def capture_frame_as_json(plotter, mesh, frame_number, config):
             "size": list(plotter.window.GetSize()),
             "background_color": config["viewport"]["background_color"],
         },
-        "svg": config.get(
-            "svg",
-            {
-                "stroke_width": DEFAULT_SVG_STROKE_WIDTH,
-                "background": DEFAULT_BACKGROUND_COLOR,
-                "fill": DEFAULT_SVG_FILL,
-                "stroke": DEFAULT_SVG_STROKE,
-                "stroke_linecap": "round",
-                "stroke_linejoin": "round",
-            },
-        ),
+        "svg": svg_settings,
     }
 
     frames_dir = FRAMES_DIR
