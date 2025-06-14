@@ -1,4 +1,5 @@
 from vedo import Mesh, Plotter
+import vedo
 import numpy as np
 import svgwrite
 from collections import defaultdict
@@ -345,6 +346,7 @@ def calculate_rotation_and_apply(animation_state, plotter, mesh):
 def handle_frame_capture(animation_state, plotter, mesh, config, mode="positioning"):
     if (
         animation_state["capture_fps"] > 0
+        and animation_state["recording_active"]
         and not animation_state["first_cycle_complete"]
     ):
         current_time = time.time() * MS_PER_SECOND
@@ -358,7 +360,7 @@ def handle_frame_capture(animation_state, plotter, mesh, config, mode="positioni
             animation_state["last_capture_time"] = current_time
 
 
-def handle_rotation_completion(animation_state, mode="positioning"):
+def handle_rotation_completion(animation_state, mode="positioning", plotter=None):
     if animation_state["rotation_progress"] >= 1.0:
         animation_state["current_rotation"] += 1
 
@@ -366,15 +368,57 @@ def handle_rotation_completion(animation_state, mode="positioning"):
             animation_state["rotation_progress"] = 0.0
             animation_state["total_rotation"] = 0.0
             animation_state["current_rotation"] = 0
-            animation_state["first_cycle_complete"] = True
 
             if (
-                animation_state["capture_fps"] > 0
-                and animation_state["frame_counter"] > 0
+                animation_state["recording_requested"]
+                and not animation_state["recording_active"]
             ):
-                print(
-                    f"\nFrame capture complete: {animation_state['frame_counter']} JSON frames saved to {FRAMES_DIR}/"
+                animation_state["recording_active"] = True
+                animation_state["recording_requested"] = False
+                animation_state["frame_counter"] = 0
+                animation_state["last_capture_time"] = time.time() * MS_PER_SECOND
+                animation_state["first_cycle_complete"] = False
+
+                frames_dir = FRAMES_DIR
+                os.makedirs(frames_dir, exist_ok=True)
+                existing_files = glob.glob(os.path.join(frames_dir, "frame_*.json"))
+                existing_files.extend(
+                    glob.glob(os.path.join(frames_dir, "frame_*.svg"))
                 )
+                if existing_files:
+                    for f in existing_files:
+                        os.remove(f)
+                    print(f"\nCleared {len(existing_files)} existing frame files")
+
+                print(
+                    f"\nRecording started! Capturing {animation_state['capture_fps']} fps..."
+                )
+                # Update the label if it exists
+                if "recording_label" in animation_state:
+                    animation_state["recording_label"].text("Animation is recording...")
+                return
+
+            if animation_state["recording_active"]:
+                animation_state["first_cycle_complete"] = True
+                animation_state["recording_active"] = False
+
+                if animation_state["frame_counter"] > 0:
+                    print(
+                        f"\nRecording complete: {animation_state['frame_counter']} JSON frames saved to {FRAMES_DIR}/"
+                    )
+
+                # Update the label if it exists
+                if "recording_label" in animation_state:
+                    animation_state["recording_label"].text("Recording complete!")
+                    if plotter:
+                        plotter.render()
+
+                if plotter and mode == "animation":
+                    print("\nClosing viewer...")
+                    plotter.close()
+                    return
+            else:
+                animation_state["first_cycle_complete"] = True
 
             if not animation_state["continuous"]:
                 animation_state["is_paused"] = True
@@ -385,6 +429,16 @@ def handle_rotation_completion(animation_state, mode="positioning"):
 
 
 def handle_key_press(evt, plotter, animation_state, mesh, config, mode="positioning"):
+    if mode == "animation":
+        if evt.keypress == "r" and not animation_state["recording_active"]:
+            animation_state["recording_requested"] = True
+            print("\nRecording will start at the beginning of the next rotation...")
+            # Update the label if it exists
+            if "recording_label" in animation_state:
+                animation_state["recording_label"].text("Waiting for rotation...")
+                plotter.render()
+        return
+
     if evt.keypress == "Up":
         cam = plotter.camera
         current_fov = cam.GetViewAngle()
@@ -400,6 +454,9 @@ def handle_key_press(evt, plotter, animation_state, mesh, config, mode="position
         print(f"FOV decreased to {new_fov}°")
         plotter.render()
     elif evt.keypress == "space":
+        if mode == "positioning":
+            return
+
         animation_state["rotation_enabled"] = not animation_state["rotation_enabled"]
         animation_state["total_rotation"] = 0.0
         animation_state["is_paused"] = False
@@ -445,7 +502,7 @@ def handle_timer(evt, plotter, mesh, config, animation_state, mode="positioning"
         handle_frame_capture(animation_state, plotter, mesh, config)
 
         if new_progress >= 1.0:
-            handle_rotation_completion(animation_state, mode)
+            handle_rotation_completion(animation_state, mode, plotter)
 
         plotter.render()
 
@@ -530,6 +587,8 @@ def setup_animation_state():
             "frame_counter": 0,
             "last_capture_time": None,
             "first_cycle_complete": False,
+            "recording_requested": False,
+            "recording_active": False,
         }
         print(f"\nLoaded config from {CONFIG_FILE_PATH}:")
         print(f"  Azimuth: {initial_config['azimuth']}°")
@@ -566,6 +625,8 @@ def setup_animation_state():
             "frame_counter": 0,
             "last_capture_time": None,
             "first_cycle_complete": False,
+            "recording_requested": False,
+            "recording_active": False,
         }
     return animation_state
 
@@ -583,34 +644,38 @@ def register_event_handlers(plotter, mesh, config, animation_state, mode="positi
     plotter.timer_callback("create", dt=20)
 
 
-def print_keybindings():
+def print_keybindings(mode="positioning"):
     print("\n=== Keybindings ===")
-    print("Camera Controls:")
-    print("  Mouse Left   : Rotate camera")
-    print("  Mouse Right  : Zoom/dolly")
-    print("  Mouse Middle : Pan/translate")
-    print(f"  Up Arrow     : Increase FOV by {FOV_ADJUSTMENT_STEP}°")
-    print(f"  Down Arrow   : Decrease FOV by {FOV_ADJUSTMENT_STEP}°")
-    print("\nAnimation:")
-    print("  Spacebar     : Toggle rotation animation")
-    print("\nRotation Controls (via config.yaml):")
-    print(f"  azimuth      : Horizontal angle (0-{int(DEGREES_PER_ROTATION)}°)")
-    print("  elevation    : Vertical angle (-90° to +90°)")
-    print("  speed        : Rotation speed (0-10°/frame)")
-    print("  pause        : Pause duration after rotation sequence (seconds)")
-    print("  continuous   : Enable continuous rotation without pauses")
-    print(
-        f"  rotations    : Number of full rotations (1={int(DEGREES_PER_ROTATION)}°, 2={int(DEGREES_PER_ROTATION) * 2}°, etc.)"
-    )
-    print("  easing       : Animation easing function (see config.yaml for options)")
-    print("\nUtility:")
-    print("  q            : Quit and save scene")
-    print("  r            : Reset camera")
-    print("  s            : Screenshot")
+
+    if mode == "positioning":
+        print("Camera Controls:")
+        print("  Mouse Left   : Rotate camera")
+        print("  Mouse Right  : Zoom/dolly")
+        print("  Mouse Middle : Pan/translate")
+        print(f"  Up Arrow     : Increase FOV by {FOV_ADJUSTMENT_STEP}°")
+        print(f"  Down Arrow   : Decrease FOV by {FOV_ADJUSTMENT_STEP}°")
+        print("\nUtility:")
+        print("  q            : Quit and save scene")
+        print("  r            : Reset camera")
+        print("  s            : Screenshot")
+    else:
+        print("Animation Controls:")
+        print("  r            : Start recording animation")
+        print("  Animation runs automatically")
+        print("  Camera controls are disabled during animation")
+        print("\nAnimation Settings (via config.yaml):")
+        print(f"  azimuth      : Horizontal angle (0-{int(DEGREES_PER_ROTATION)}°)")
+        print("  elevation    : Vertical angle (-90° to +90°)")
+        print("  speed        : Rotation speed (0-10°/frame)")
+        print("  rotations    : Number of full rotations")
+        print("  easing       : Animation easing function")
+        print("\nUtility:")
+        print("  q            : Quit and save animation")
+
     print("==================\n")
 
 
-def run_interactive_viewer(plotter, config, use_fresh):
+def run_interactive_viewer(plotter, config, use_fresh, mode="positioning"):
     config_file = SCENE_CONFIG_PATH
     setup_camera(plotter, config)
     if not use_fresh and os.path.exists(config_file) and config["camera"]:
@@ -624,15 +689,40 @@ def run_interactive_viewer(plotter, config, use_fresh):
 def configure_scene_in_viewer(use_fresh=False, mode="positioning"):
     config, mesh, plotter = setup_scene_components(use_fresh)
     animation_state = setup_animation_state()
-    register_event_handlers(plotter, mesh, config, animation_state)
+    register_event_handlers(plotter, mesh, config, animation_state, mode)
 
     if mode == "animation":
         print("\n" + "=" * 60)
         print("ANIMATION CAPTURE MODE")
         print("=" * 60)
-        print("Press SPACEBAR to start/stop animation recording")
-        print("Close the viewer when animation capture is complete")
+        print("Animation will start automatically")
+        print("Press 'r' to start recording")
+        print("Recording will close viewer automatically when complete")
         print("=" * 60 + "\n")
+
+        mode_text = vedo.Text2D(
+            "Animation Mode",
+            pos="top-left",
+            c="black",
+            font="Fira Code",
+            s=1.2,
+            bg="white",
+            alpha=0.8,
+        )
+        plotter.add(mode_text)
+
+        # Add recording status label on the right
+        recording_text = vedo.Text2D(
+            "Press 'r' to record",
+            pos="top-right",
+            c="black",
+            font="Fira Code",
+            s=0.8,  # Smaller text
+            bg="white",
+            alpha=0.8,
+        )
+        plotter.add(recording_text)
+        animation_state["recording_label"] = recording_text
     else:
         print("\n" + "=" * 60)
         print("POSITIONING MODE")
@@ -641,8 +731,35 @@ def configure_scene_in_viewer(use_fresh=False, mode="positioning"):
         print("Close the viewer when positioning is complete")
         print("=" * 60 + "\n")
 
-    print_keybindings()
-    run_interactive_viewer(plotter, config, use_fresh)
+        mode_text = vedo.Text2D(
+            "Positioning Mode",
+            pos="top-left",
+            c="black",
+            font="Fira Code",
+            s=1.2,
+            bg="white",
+            alpha=0.8,
+        )
+        plotter.add(mode_text)
+
+    print_keybindings(mode)
+
+    if mode == "animation":
+        animation_state["rotation_enabled"] = True
+        animation_state["initial_transform"] = mesh.transform.clone()
+        animation_state["frame_counter"] = 0
+        animation_state["last_capture_time"] = time.time() * MS_PER_SECOND
+        animation_state["first_cycle_complete"] = False
+        animation_state["recording_requested"] = False
+        animation_state["recording_active"] = False
+
+        print("\nAnimation started automatically")
+        if animation_state["capture_fps"] > 0:
+            print(
+                f"Press 'r' to start recording at {animation_state['capture_fps']} fps"
+            )
+
+    run_interactive_viewer(plotter, config, use_fresh, mode)
 
     if mode == "positioning":
         was_saved = save_configuration(plotter, mesh, config, animation_state)
