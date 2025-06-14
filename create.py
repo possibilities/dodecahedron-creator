@@ -277,13 +277,19 @@ def handle_animation_pause_logic(animation_state):
     return True
 
 
-def calculate_rotation_and_apply(animation_state, plotter, mesh):
+def calculate_rotation_and_apply(animation_state, plotter, mesh, config=None):
     azimuth_rad = np.radians(animation_state["rotation_azimuth"])
     elevation_rad = np.radians(animation_state["rotation_elevation"])
 
     camera = plotter.camera
     camera_pos = np.array(camera.GetPosition())
-    focal_point = np.array(camera.GetFocalPoint())
+
+    # Use focal point from config if available to ensure consistency
+    if config and "camera" in config and "focal_point" in config["camera"]:
+        focal_point = np.array(config["camera"]["focal_point"])
+    else:
+        focal_point = np.array(camera.GetFocalPoint())
+
     camera_up = np.array(camera.GetViewUp())
 
     view_direction = focal_point - camera_pos
@@ -497,7 +503,9 @@ def handle_timer(evt, plotter, mesh, config, animation_state, mode="positioning"
         if not handle_animation_pause_logic(animation_state):
             return
 
-        new_progress = calculate_rotation_and_apply(animation_state, plotter, mesh)
+        new_progress = calculate_rotation_and_apply(
+            animation_state, plotter, mesh, config
+        )
 
         handle_frame_capture(animation_state, plotter, mesh, config)
 
@@ -516,10 +524,21 @@ def capture_frame_as_json(plotter, mesh, frame_number, config):
         else [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
     )
 
+    # Use the focal point from the saved scene config to ensure consistency
+    focal_point = config["camera"].get("focal_point", list(camera.GetFocalPoint()))
+
+    # Debug: Print focal point info for first frame
+    if frame_number == 1:
+        print(
+            f"  Frame 1 - Config focal point: {config['camera'].get('focal_point', 'Not set')}"
+        )
+        print(f"  Frame 1 - Camera focal point: {list(camera.GetFocalPoint())}")
+        print(f"  Frame 1 - Using focal point: {focal_point}")
+
     scene_data = {
         "camera": {
             "position": list(camera.GetPosition()),
-            "focal_point": list(camera.GetFocalPoint()),
+            "focal_point": focal_point,
             "view_up": list(camera.GetViewUp()),
             "view_angle": camera.GetViewAngle(),
             "clipping_range": list(camera.GetClippingRange()),
