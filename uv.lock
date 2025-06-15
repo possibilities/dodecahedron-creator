@@ -182,7 +182,7 @@ wheels = [
 [[package]]
 name = "dodecahedron-creator"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "cairosvg" },
     { name = "easing-functions" },
