@@ -8,7 +8,7 @@ import glob
 import easing_functions as easing
 from vedo import Plotter
 
-from config import (
+from .config import (
     read_config_file,
     CONFIG_FILE_PATH,
 )
@@ -348,7 +348,7 @@ def capture_frame_as_json(plotter, mesh, frame_number, config):
 def run_headless_recording(config):
     """Run a headless animation cycle to capture frames"""
     # Import here to avoid circular dependency
-    from utils import setup_mesh, setup_camera
+    from .utils import setup_mesh, setup_camera
 
     print("\n" + "=" * 60)
     print("HEADLESS RECORDING")

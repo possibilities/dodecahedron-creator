@@ -10,7 +10,7 @@ from collections import defaultdict
 import cairosvg
 from PIL import Image
 
-from config import (
+from .config import (
     get_scene_config_path,
     get_svg_path,
     get_frames_dir,
@@ -144,7 +144,7 @@ def convex_hull(points):
 
 def get_global_bounding_box(config):
     # Import here to avoid circular dependency
-    from utils import setup_offscreen_renderer
+    from .utils import setup_offscreen_renderer
 
     plotter, mesh, camera = setup_offscreen_renderer(config)
 
@@ -191,7 +191,7 @@ def get_global_bounding_box(config):
 
 def setup_svg_renderer(json_path, context, style=None):
     # Import here to avoid circular dependency
-    from utils import setup_offscreen_renderer
+    from .utils import setup_offscreen_renderer
 
     with open(json_path, "r") as f:
         config = json.load(f)
