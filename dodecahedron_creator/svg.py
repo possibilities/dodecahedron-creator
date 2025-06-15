@@ -16,7 +16,6 @@ from .config import (
     get_frames_dir,
     get_gif_path,
     color_to_rgb,
-    SHARED_SCENE_PATH,
     read_config_file,
 )
 
@@ -477,13 +476,13 @@ def create_animated_gif(png_paths, output_path, capture_fps, animation_config):
     return False
 
 
-def create_svg_from_scene(style_name=None):
-    print(f"Generating SVG{' for style: ' + style_name if style_name else ''}...")
+def create_svg_from_scene(model_name, style_name):
+    print(f"Generating SVG for {model_name} with style: {style_name}...")
 
     context = SvgGenerationContext()
 
-    scene_path = get_scene_config_path(style_name) if style_name else SHARED_SCENE_PATH
-    svg_path = get_svg_path(style_name) if style_name else "build/dodecahedron.svg"
+    scene_path = get_scene_config_path(model_name, style_name)
+    svg_path = get_svg_path(model_name, style_name)
 
     # Load style information from scene.json if style_name is provided
     style = None
@@ -496,19 +495,19 @@ def create_svg_from_scene(style_name=None):
     svg_output = create_svg_from_json(scene_path, svg_path, context)
     print(f"SVG saved as {svg_output}")
 
-    # Always use shared frames directory
-    shared_frames_dir = "build/frames"
+    # Use model-specific frames directory
+    model_frames_dir = f"build/{model_name}/frames"
     frame_json_files = sorted(
-        glob.glob(os.path.join(shared_frames_dir, FRAME_JSON_PATTERN))
+        glob.glob(os.path.join(model_frames_dir, FRAME_JSON_PATTERN))
     )
 
-    if frame_json_files and style_name:
+    if frame_json_files:
         print(
             f"\nConverting {len(frame_json_files)} frame JSON files to SVG for style '{style_name}'..."
         )
 
-        # Create style-specific frames directory for temporary SVG/PNG files
-        style_frames_dir = get_frames_dir(style_name)
+        # Create model/style-specific frames directory for temporary SVG/PNG files
+        style_frames_dir = get_frames_dir(model_name, style_name)
         os.makedirs(style_frames_dir, exist_ok=True)
 
         svg_paths = []
@@ -534,7 +533,7 @@ def create_svg_from_scene(style_name=None):
                 and config.get("capture_fps", 0) > 0
             ):
                 print(f"\nCreating animated GIF from {len(png_paths)} frames...")
-                gif_path = get_gif_path(style_name)
+                gif_path = get_gif_path(model_name, style_name)
                 if create_animated_gif(
                     png_paths, gif_path, config["capture_fps"], config
                 ):

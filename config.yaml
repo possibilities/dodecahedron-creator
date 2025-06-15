@@ -1,3 +1,8 @@
+# Models to generate from polyhedra-viewer library
+models:
+  - dodecahedron
+  - cube
+
 # Azimuth angle in degrees (0-360)
 azimuth: 330
 
@@ -46,21 +51,3 @@ stroke_linejoin: "round"
 themes:
   - "mono-light"
   - "mono-dark"
-  - "modern-minimal-light"
-  - "modern-minimal-dark"
-  - "twitter-light"
-  - "twitter-dark"
-  - "catppuccin-light"
-  - "catppuccin-dark"
-  - "graphite-light"
-  - "graphite-dark"
-  - "nature-light"
-  - "nature-dark"
-  - "supabase-light"
-  - "supabase-dark"
-  - "neo-brutalism-light"
-  - "neo-brutalism-dark"
-  - "cosmic-night-light"
-  - "cosmic-night-dark"
-  - "quantum-rose-light"
-  - "quantum-rose-dark"
