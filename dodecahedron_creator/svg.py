@@ -36,9 +36,9 @@ class SvgGenerationContext:
     def reset(self):
         self.global_bbox = None
 
-    def get_or_calculate_bbox(self, config):
+    def get_or_calculate_bbox(self, config, model_name=None):
         if self.global_bbox is None:
-            self.global_bbox = get_global_bounding_box(config)
+            self.global_bbox = get_global_bounding_box(config, model_name)
         return self.global_bbox
 
 
@@ -141,11 +141,11 @@ def convex_hull(points):
     return lower[:-1] + upper[:-1]
 
 
-def get_global_bounding_box(config):
+def get_global_bounding_box(config, model_name=None):
     # Import here to avoid circular dependency
     from .utils import setup_offscreen_renderer
 
-    plotter, mesh, camera = setup_offscreen_renderer(config)
+    plotter, mesh, camera = setup_offscreen_renderer(config, model_name)
 
     all_mesh_vertices = mesh.vertices
     renderer = plotter.renderer
@@ -188,7 +188,7 @@ def get_global_bounding_box(config):
     return None
 
 
-def setup_svg_renderer(json_path, context, style=None):
+def setup_svg_renderer(json_path, context, style=None, model_name=None):
     # Import here to avoid circular dependency
     from .utils import setup_offscreen_renderer
 
@@ -203,9 +203,9 @@ def setup_svg_renderer(json_path, context, style=None):
         config["mesh"]["edge_color"] = color_to_rgb(style.get("stroke", "white"))
         config["viewport"]["background_color"] = style.get("background", "white")
 
-    context.get_or_calculate_bbox(config)
+    context.get_or_calculate_bbox(config, model_name)
 
-    plotter, mesh, camera = setup_offscreen_renderer(config)
+    plotter, mesh, camera = setup_offscreen_renderer(config, model_name)
     visible_edges, vertices = calculate_visible_geometry(mesh, camera)
     projected_edges = project_to_2d(plotter, visible_edges, vertices)
     plotter.close()
@@ -380,11 +380,13 @@ def generate_svg_content(config, projected_edges, bounds, svg_path):
     return svg_path
 
 
-def create_svg_from_json(json_path, svg_path, context=None, style=None):
+def create_svg_from_json(
+    json_path, svg_path, context=None, style=None, model_name=None
+):
     if context is None:
         context = SvgGenerationContext()
 
-    config, projected_edges = setup_svg_renderer(json_path, context, style)
+    config, projected_edges = setup_svg_renderer(json_path, context, style, model_name)
     bounds = calculate_svg_bounds(config, projected_edges, context)
     return generate_svg_content(config, projected_edges, bounds, svg_path)
 
@@ -492,7 +494,9 @@ def create_svg_from_scene(model_name, style_name):
             style = scene_config.get("svg")
 
     # Generate the static SVG
-    svg_output = create_svg_from_json(scene_path, svg_path, context)
+    svg_output = create_svg_from_json(
+        scene_path, svg_path, context, model_name=model_name
+    )
     print(f"SVG saved as {svg_output}")
 
     # Use model-specific frames directory
@@ -514,7 +518,7 @@ def create_svg_from_scene(model_name, style_name):
         for json_path in frame_json_files:
             frame_name = os.path.basename(json_path).replace(".json", ".svg")
             svg_path = os.path.join(style_frames_dir, frame_name)
-            create_svg_from_json(json_path, svg_path, context, style)
+            create_svg_from_json(json_path, svg_path, context, style, model_name)
             print(f"  Created {svg_path}")
             svg_paths.append(svg_path)
         print("Frame conversion complete!")
