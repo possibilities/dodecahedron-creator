@@ -5,7 +5,7 @@ import os
 import json
 import copy
 
-from config import (
+from .config import (
     read_config_file,
     load_themes,
     load_scene_data,
@@ -14,9 +14,9 @@ from config import (
     get_scene_config_path,
     SHARED_SCENE_PATH,
 )
-from viewer import configure_scene_in_viewer
-from animation import run_headless_recording
-from svg_generator import create_svg_from_scene
+from .viewer import configure_scene_in_viewer
+from .animation import run_headless_recording
+from .svg import create_svg_from_scene
 
 
 def main():

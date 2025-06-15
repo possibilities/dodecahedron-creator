@@ -4,15 +4,15 @@ import os
 import time
 from vedo import Plotter, Text2D
 
-from config import (
+from .config import (
     save_configuration,
     get_scene_config_path,
 )
-from animation import (
+from .animation import (
     setup_animation_state,
     handle_timer,
 )
-from utils import setup_camera
+from .utils import setup_camera
 
 # Viewer constants
 FOV_ADJUSTMENT_STEP = 5
@@ -132,7 +132,7 @@ def configure_scene_in_viewer(
     use_fresh=False, mode="positioning", scene_path=None, style=None
 ):
     # Import here to avoid circular dependency
-    from utils import setup_scene_components
+    from .utils import setup_scene_components
 
     config, mesh, plotter = setup_scene_components(
         use_fresh, scene_path=scene_path, style=style

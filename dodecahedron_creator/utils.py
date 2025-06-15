@@ -3,7 +3,7 @@
 import numpy as np
 from vedo import Mesh, Plotter
 
-from config import (
+from .config import (
     MODEL_PATH,
     load_configuration,
 )
@@ -49,7 +49,7 @@ def setup_camera(plotter, config):
 
 def setup_scene_components(use_fresh=False, scene_path=None, style=None):
     # Import here to avoid circular dependency
-    from viewer import create_viewer
+    from .viewer import create_viewer
 
     config = load_configuration(
         ignore_saved=use_fresh, scene_path=scene_path, style=style
