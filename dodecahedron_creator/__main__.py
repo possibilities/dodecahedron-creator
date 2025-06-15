@@ -43,6 +43,13 @@ def main():
     )
     args = parser.parse_args()
 
+    # Clean build directory on each run
+    if os.path.exists("build"):
+        import shutil
+
+        print("Cleaning build directory...")
+        shutil.rmtree("build")
+
     # Pre-fetch themes before anything else to avoid network calls during animation
     print("Fetching themes from registry...")
     load_themes()
