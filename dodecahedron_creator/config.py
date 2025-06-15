@@ -8,9 +8,13 @@ import math
 import requests
 
 # File paths
-MODEL_PATH = "resources/dodecahedron.obj"
 CONFIG_FILE_PATH = "config.yaml"
-SHARED_SCENE_PATH = "build/shared_scene.json"
+
+
+def get_shared_scene_path(model_name):
+    """Get the shared scene path for a specific model."""
+    return os.path.join("build", model_name, "shared_scene.json")
+
 
 # Default values
 DEFAULT_SVG_STROKE_WIDTH = 12
@@ -47,31 +51,33 @@ COLOR_MAP = {
 _themes_cache = None
 
 
-def get_build_dir(style_name=None):
-    """Get the build directory for a specific style."""
-    if style_name:
-        return os.path.join("build", style_name)
+def get_build_dir(model_name=None, style_name=None):
+    """Get the build directory for a specific model and style."""
+    if model_name and style_name:
+        return os.path.join("build", model_name, style_name)
+    elif model_name:
+        return os.path.join("build", model_name)
     return "build"
 
 
-def get_svg_path(style_name):
-    """Get the SVG output path for a specific style."""
-    return os.path.join(get_build_dir(style_name), "dodecahedron.svg")
+def get_svg_path(model_name, style_name):
+    """Get the SVG output path for a specific model and style."""
+    return os.path.join(get_build_dir(model_name, style_name), f"{model_name}.svg")
 
 
-def get_scene_config_path(style_name):
-    """Get the scene config path for a specific style."""
-    return os.path.join(get_build_dir(style_name), "scene.json")
+def get_scene_config_path(model_name, style_name):
+    """Get the scene config path for a specific model and style."""
+    return os.path.join(get_build_dir(model_name, style_name), "scene.json")
 
 
-def get_frames_dir(style_name):
-    """Get the frames directory for a specific style."""
-    return os.path.join(get_build_dir(style_name), "frames")
+def get_frames_dir(model_name, style_name):
+    """Get the frames directory for a specific model and style."""
+    return os.path.join(get_build_dir(model_name, style_name), "frames")
 
 
-def get_gif_path(style_name):
-    """Get the GIF output path for a specific style."""
-    return os.path.join(get_build_dir(style_name), "animation.gif")
+def get_gif_path(model_name, style_name):
+    """Get the GIF output path for a specific model and style."""
+    return os.path.join(get_build_dir(model_name, style_name), "animation.gif")
 
 
 def fetch_registry() -> dict:
@@ -311,6 +317,22 @@ def read_config_file():
         with open(CONFIG_FILE_PATH, "r") as f:
             config = yaml.safe_load(f)
 
+            # Import models module for validation
+            from .models import validate_model_names
+
+            # Validate model names
+            model_names = config.get("models", ["dodecahedron"])
+            valid_models, invalid_models = validate_model_names(model_names)
+
+            if invalid_models:
+                print(f"Error: Invalid model names: {', '.join(invalid_models)}")
+                print("Check the polyhedra-viewer project for available models")
+                return None
+
+            if not valid_models:
+                print("Error: No valid models specified in config")
+                return None
+
             # Load theme names
             theme_names = config.get("themes", [])
             if not theme_names:
@@ -363,6 +385,7 @@ def read_config_file():
                 style["stroke"] = style.get("background", "white")
 
             return {
+                "models": valid_models,
                 "azimuth": config.get("azimuth", 0),
                 "elevation": config.get("elevation", 0),
                 "speed": config.get("speed", 1.0),
@@ -392,8 +415,12 @@ def read_config_file():
         return None
 
 
-def load_configuration(ignore_saved=False, scene_path=None, style=None):
-    config_file = scene_path or SHARED_SCENE_PATH
+def load_configuration(
+    ignore_saved=False, scene_path=None, style=None, model_name=None
+):
+    config_file = scene_path
+    if not config_file and model_name:
+        config_file = get_shared_scene_path(model_name)
 
     # Use provided style or get from config file
     if style:
@@ -451,9 +478,13 @@ def load_configuration(ignore_saved=False, scene_path=None, style=None):
         }
 
 
-def save_configuration(plotter, mesh, config, animation_state, scene_path=None):
+def save_configuration(
+    plotter, mesh, config, animation_state, scene_path=None, model_name=None
+):
     camera = plotter.camera
-    save_path = scene_path or SHARED_SCENE_PATH
+    save_path = scene_path
+    if not save_path and model_name:
+        save_path = get_shared_scene_path(model_name)
 
     final_position = list(camera.GetPosition())
     final_focal_point = list(camera.GetFocalPoint())
@@ -513,7 +544,6 @@ def save_configuration(plotter, mesh, config, animation_state, scene_path=None):
     return True
 
 
-def load_scene_data(scene_path=None):
-    path = scene_path or SHARED_SCENE_PATH
-    with open(path, "r") as f:
+def load_scene_data(scene_path):
+    with open(scene_path, "r") as f:
         return json.load(f)

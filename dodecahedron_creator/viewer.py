@@ -32,7 +32,9 @@ def run_interactive_session(plotter):
     plotter.interactive()
 
 
-def handle_key_press(evt, plotter, animation_state, mesh, config, mode="positioning"):
+def handle_key_press(
+    evt, plotter, animation_state, mesh, config, mode="positioning", model_name=None
+):
     if mode == "animation":
         # No special keys in animation preview mode
         return
@@ -72,10 +74,14 @@ def handle_key_press(evt, plotter, animation_state, mesh, config, mode="position
         print(f"Rotation animation {status}")
 
 
-def register_event_handlers(plotter, mesh, config, animation_state, mode="positioning"):
+def register_event_handlers(
+    plotter, mesh, config, animation_state, mode="positioning", model_name=None
+):
     plotter.add_callback(
         "on key press",
-        lambda evt: handle_key_press(evt, plotter, animation_state, mesh, config, mode),
+        lambda evt: handle_key_press(
+            evt, plotter, animation_state, mesh, config, mode, model_name
+        ),
     )
     plotter.add_callback(
         "timer",
@@ -129,16 +135,16 @@ def run_interactive_viewer(
 
 
 def configure_scene_in_viewer(
-    use_fresh=False, mode="positioning", scene_path=None, style=None
+    use_fresh=False, mode="positioning", scene_path=None, style=None, model_name=None
 ):
     # Import here to avoid circular dependency
     from .utils import setup_scene_components
 
     config, mesh, plotter = setup_scene_components(
-        use_fresh, scene_path=scene_path, style=style
+        use_fresh, scene_path=scene_path, style=style, model_name=model_name
     )
     animation_state = setup_animation_state()
-    register_event_handlers(plotter, mesh, config, animation_state, mode)
+    register_event_handlers(plotter, mesh, config, animation_state, mode, model_name)
 
     if mode == "animation":
         print("\n" + "=" * 60)
@@ -192,7 +198,12 @@ def configure_scene_in_viewer(
 
     if mode == "positioning":
         was_saved = save_configuration(
-            plotter, mesh, config, animation_state, scene_path=scene_path
+            plotter,
+            mesh,
+            config,
+            animation_state,
+            scene_path=scene_path,
+            model_name=model_name,
         )
     else:
         was_saved = False

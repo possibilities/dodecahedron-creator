@@ -296,7 +296,7 @@ def handle_timer(evt, plotter, mesh, config, animation_state, mode="positioning"
         plotter.render()
 
 
-def capture_frame_as_json(plotter, mesh, frame_number, config):
+def capture_frame_as_json(plotter, mesh, frame_number, config, model_name=None):
     camera = plotter.camera
 
     transform_matrix = (
@@ -334,8 +334,11 @@ def capture_frame_as_json(plotter, mesh, frame_number, config):
         },
     }
 
-    # Always save to shared frames directory
-    frames_dir = "build/frames"
+    # Save to model-specific frames directory
+    if model_name:
+        frames_dir = f"build/{model_name}/frames"
+    else:
+        frames_dir = "build/frames"
     os.makedirs(frames_dir, exist_ok=True)
     json_path = os.path.join(frames_dir, f"frame_{frame_number:04d}.json")
 
@@ -345,7 +348,7 @@ def capture_frame_as_json(plotter, mesh, frame_number, config):
     print(f"  Captured frame {frame_number} -> {json_path}")
 
 
-def run_headless_recording(config):
+def run_headless_recording(config, model_name=None):
     """Run a headless animation cycle to capture frames"""
     # Import here to avoid circular dependency
     from .utils import setup_mesh, setup_camera
@@ -354,8 +357,11 @@ def run_headless_recording(config):
     print("HEADLESS RECORDING")
     print("=" * 60)
 
-    # Clear existing frame files in shared frames directory
-    frames_dir = "build/frames"
+    # Clear existing frame files in model-specific frames directory
+    if model_name:
+        frames_dir = f"build/{model_name}/frames"
+    else:
+        frames_dir = "build/frames"
     os.makedirs(frames_dir, exist_ok=True)
     existing_files = glob.glob(os.path.join(frames_dir, "frame_*.json"))
     if existing_files:
@@ -370,7 +376,7 @@ def run_headless_recording(config):
     animation_state["last_capture_time"] = 0  # Start capturing immediately
 
     # Create offscreen renderer
-    mesh = setup_mesh(config)
+    mesh = setup_mesh(config, model_name=model_name)
     plotter = Plotter(
         bg=config["viewport"]["background_color"],
         offscreen=True,
@@ -411,6 +417,7 @@ def run_headless_recording(config):
                         mesh,
                         animation_state["frame_counter"],
                         config,
+                        model_name,
                     )
                     animation_state["last_capture_time"] = current_time
                     frames_captured += 1
@@ -433,6 +440,7 @@ def run_headless_recording(config):
                             mesh,
                             animation_state["frame_counter"],
                             config,
+                            model_name,
                         )
                         frames_captured += 1
 
